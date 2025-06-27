@@ -1,0 +1,24 @@
+{
+	"project": "AutoUpdate-Test",
+	"scriptName": "Test-AutoUpdater.ps1",
+	"channels": {
+		"stable": {
+			"version": "1.0.0",
+			"forceUpdateBelowVersion": null
+		},
+		"dev": {
+			"version": "1.0.0",
+			"forceUpdateBelowVersion": null
+		}
+	},
+	"changelog": {
+		"1.0.0": {
+			"dependencies": { "minPSVersion": "5.1", "modules": [] },
+			"notes": [ "Initial release for testing." ]
+		},
+		"1.1.0": {
+			"dependencies": { "minPSVersion": "5.1", "modules": [] },
+			"notes": [ "[FEATURE] Added a new welcome message." ]
+		}
+	}
+}
