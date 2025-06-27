@@ -1,0 +1,46 @@
+name: Update Version Info Gist
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-gist:
+    runs-on: ubuntu-latest
+    steps:
+      # Stap 1: Bepaal de variabelen (versie en kanaal)
+      - name: Determine Version and Channel
+        id: vars
+        shell: pwsh
+        run: |
+          $tagName = "${{ github.event.release.tag_name }}"
+          $version = $tagName -replace '^v'
+          $isPreRelease = ${{ github.event.release.prerelease }}
+          $channel = if ($isPreRelease) { 'dev' } else { 'stable' }
+
+          echo "tag_name=$tagName" >> $env:GITHUB_OUTPUT
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "channel=$channel" >> $env:GITHUB_OUTPUT
+          Write-Host "Release: $tagName, Version: $version, Channel: $channel"
+
+      # Stap 2: Download de huidige Gist, pas hem aan en upload de nieuwe versie
+      - name: Update Gist Content
+        shell: pwsh
+        env:
+          # Geef de Action toegang tot de Gist ID en het PAT token
+          GH_TOKEN: ${{ secrets.GIST_PAT }}
+          GIST_ID: "27a5c52571bddc7eff4ea21f407d4e71" # <<< JOUW GIST ID IS HIER INGEVULD
+        run: |
+          # Download de huidige, ruwe inhoud van de Gist
+          gh gist view $env:GIST_ID --raw > versioninfo.json
+          Write-Host "Successfully downloaded current Gist content."
+
+          # Lees en update de JSON met de variabelen uit de vorige stap
+          $json = Get-Content -Path ./versioninfo.json -Raw | ConvertFrom-Json
+          $json.channels.${{ steps.vars.outputs.channel }}.version = "${{ steps.vars.outputs.version }}"
+          $newJsonString = $json | ConvertTo-Json -Depth 10
+          $newJsonString | Set-Content -Path ./versioninfo.json
+
+          # Upload het aangepaste bestand om de Gist bij te werken
+          gh gist edit $env:GIST_ID ./versioninfo.json
+          Write-Host "Successfully uploaded new content to Gist."
