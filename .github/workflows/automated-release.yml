@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # A PAT is needed to allow this Action to trigger the subsequent Gist update Action
-          token: ${{ secrets.PAT_FOR_ACTIONS }}
+          token: ${{ secrets.GIST_PAT }}
 
       - name: Extract version and release notes from commit message
         id: extract_info
