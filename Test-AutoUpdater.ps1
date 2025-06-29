@@ -1,66 +1,134 @@
 <#
 .SYNOPSIS
-    A test script to demonstrate the auto-update functionality.
+    A test script to demonstrate a self-contained auto-update functionality.
+
 .DESCRIPTION
     This script includes a robust update-checking framework and performs a simple task
     to show which version is currently running. It fetches its version information from
-    an external GitHub Gist.
+    an external GitHub Gist and derives its own context, like its filename.
+
 .NOTES
     Function Name   : Test-AutoUpdater.ps1
-    Version         : v1.0.2
+    Version         : v1.0.7
     Author          : John Billekens
+
 .LINK
     https://blog.j81.nl
 #>
 [CmdletBinding()]
 param (
-    # --- Update Framework Parameters ---
     [Parameter(HelpMessage = "Automatically download and install the new version.")]
-    [switch]$AutoUpdate,
+    [switch]
+    $AutoUpdate,
 
     [Parameter(HelpMessage = "Restart the script with the same parameters after a successful update.")]
-    [switch]$RestartAfterUpdate,
+    [switch]
+    $RestartAfterUpdate,
 
     [Parameter(HelpMessage = "Choose the update channel: 'stable' for releases, 'dev' for testing.")]
     [ValidateSet('stable', 'dev')]
-    [string]$UpdateChannel = 'stable',
+    [string]
+    $UpdateChannel = 'stable',
 
     [Parameter(HelpMessage = "Revert to the most recent backup (.bak) file.")]
-    [switch]$Rollback,
+    [switch]
+    $Rollback,
 
     [Parameter(HelpMessage = "Skip the update check entirely.")]
-    [switch]$NoUpdateCheck
+    [switch]
+    $NoUpdateCheck
 )
 
 # --- Script Configuration ---
-$ScriptVersion = '1.0.2'
+$ScriptVersion = '1.0.7'
+# The required certificate subject is now a fixed configuration variable for this script.
 $RequiredCertificateSubject = 'CN=John Billekens Consultancy, O=John Billekens Consultancy, L=Schijndel, C=NL'
 
 #================================================================================
 # SECTION: SCRIPT AUTO-UPDATE FRAMEWORK
 #================================================================================
 function Invoke-ScriptUpdateCheck {
-<#
+    <#
 .SYNOPSIS
     Checks for a new version of the script and optionally performs an update.
+
+.DESCRIPTION
+    This function connects to a GitHub repository to check for new script versions based on a
+    versioninfo.json file. It supports signed scripts via GitHub Releases, dependency checking,
+    update throttling, and multiple update channels.
+
+.PARAMETER CurrentVersion
+    The version of the currently running script.
+
+.PARAMETER AutoUpdate
+    A switch to automatically download and apply an available update.
+
+.PARAMETER RestartAfterUpdate
+    A switch to restart the script with its original parameters after a successful update.
+
+.PARAMETER UpdateChannel
+    The update channel to check ('stable' or 'dev').
+
+.PARAMETER Rollback
+    A switch to initiate a rollback to the most recent backup file.
+
+.PARAMETER NoUpdateCheck
+    A switch to bypass the update check.
+
+.PARAMETER CheckIntervalHours
+    The number of hours to wait before checking for an update again.
+
+.NOTES
+    Function Name   : Invoke-ScriptUpdateCheck
+    Version         : v1.0.5
+    Author          : John Billekens
+
+.LINK
+    https://blog.j81.nl
 #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([boolean])]
     param (
-        # ... (parameters for Invoke-ScriptUpdateCheck as defined in previous responses) ...
+
+        [Parameter(Mandatory = $true)]
+        [string]
+        $CurrentVersion,
+
+        [Parameter(Mandatory = $false)]
+        [switch]
+        $AutoUpdate,
+
+        [Parameter(Mandatory = $false)]
+        [switch]
+        $RestartAfterUpdate,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('stable', 'dev')]
+        [string]
+        $UpdateChannel = 'stable',
+
+        [Parameter(Mandatory = $false)]
+        [switch]
+        $Rollback,
+
+        [Parameter(Mandatory = $false)]
+        [switch]
+        $NoUpdateCheck,
+
+        [Parameter(Mandatory = $false)]
+        [int]
+        $CheckIntervalHours = 24
     )
 
     #region --- CONFIGURATION ---
-    # These values are now specific to your setup
-    $githubUser         = "j81blog"
-    $githubRepo         = "AutoUpdate-Test"
+    $githubUser = "j81blog"
+    $githubRepo = "AutoUpdate-Test"
+    $jsonUrl = "https://gist.githubusercontent.com/$($githubUser)/27a5c52571bddc7eff4ea21f407d4e71/raw/versioninfo.json"
 
-    # This URL now points directly to your Gist's raw file
-    $jsonUrl            = "https://gist.githubusercontent.com/j81blog/27a5c52571bddc7eff4ea21f407d4e71/raw/versioninfo.json"
-
+    # Script determines its own context
     $scriptFullName = (Get-Variable -Name MyInvocation -Scope 1).Value.MyCommand.Name
-    $scriptPath     = (Get-Variable -Name MyInvocation -Scope 1).Value.MyCommand.Path
-    $scriptRoot     = Split-Path -Path $scriptPath -Parent
+    $scriptPath = (Get-Variable -Name MyInvocation -Scope 1).Value.MyCommand.Path
+    $scriptRoot = Split-Path -Path $scriptPath -Parent
     #endregion
 
     #region --- INITIAL CHECKS & MODES (Rollback/NoCheck) ---
@@ -68,8 +136,20 @@ function Invoke-ScriptUpdateCheck {
         Write-Verbose -Message "Update check explicitly skipped."
         return $true
     }
+
     if ($Rollback) {
-        # ... (Rollback logic remains the same) ...
+        $backupFile = Get-ChildItem -Path $scriptRoot -Filter "$($scriptFullName -replace '\.ps1$', '*.bak')" | Sort-Object -Property LastWriteTime -Descending | Select-Object -First 1
+        if (-not $backupFile) {
+            Write-Error -Message "No backup file (.bak) found to roll back to."
+            return $false
+        }
+        if ($PSCmdlet.ShouldProcess($scriptFullName, "Rollback to version from '$($backupFile.Name)'")) {
+            $brokenScriptPath = "$($scriptPath).broken_$(Get-Date -Format 'yyyyMMddHHmmss')"
+            Rename-Item -Path $scriptPath -NewName $brokenScriptPath
+            Rename-Item -Path $backupFile.FullName -NewName $scriptFullName
+            Write-Host "Rollback successful. Please start the script again." -ForegroundColor Green
+        }
+        exit
     }
     #endregion
 
@@ -77,7 +157,7 @@ function Invoke-ScriptUpdateCheck {
     $lastCheckFile = Join-Path -Path $env:TEMP -ChildPath "$($scriptFullName)_lastupdatecheck.txt"
     if ((Test-Path -Path $lastCheckFile) -and $CheckIntervalHours -gt 0) {
         try {
-            if ((Get-Date) -lt (Get-Content -Path $lastCheckFile | ConvertTo-DateTime).AddHours($CheckIntervalHours)) {
+            if ((Get-Date) -lt ([datetime]::FromFileTimeUtc($(Get-Content -Path $lastCheckFile))).AddHours($CheckIntervalHours)) {
                 Write-Verbose -Message "Update check skipped; last check was recent."
                 return $true
             }
@@ -90,18 +170,37 @@ function Invoke-ScriptUpdateCheck {
     #region --- FETCH UPDATE INFO ---
     Write-Verbose -Message "Checking for updates... (Channel: $($UpdateChannel))"
     try {
-        # The URL is already defined in the configuration section
         $versionInfo = Invoke-RestMethod -Uri $jsonUrl -ErrorAction Stop
-        # After a successful check against the Gist, update the local timestamp
-        Set-Content -Path $lastCheckFile -Value (Get-Date)
+        Set-Content -Path $lastCheckFile -Value ((Get-Date).ToFileTimeUtc())
     } catch {
         Write-Warning -Message "Could not retrieve update information from Gist. Continuing with current version."
         return $true
     }
 
     $channelData = $versionInfo.channels.$UpdateChannel
-    # ... The rest of the function remains identical to the previous version ...
-    # ... It will use $versionInfo.scriptName to find the asset in the release ...
+    $latestVersionString = $channelData.version
+    $currentVersionObj = [System.Version]$CurrentVersion
+    $latestVersionObj = [System.Version]$latestVersionString
+    #endregion
+
+    #region --- VERSION & DEPENDENCY CHECK ---
+    if ($channelData.forceUpdateBelowVersion -and ($currentVersionObj -lt [System.Version]$channelData.forceUpdateBelowVersion)) {
+        Write-Error -Message "CRITICAL: Your script version ($($CurrentVersion)) is outdated. Update to $($latestVersionString) is required. Please run with '-AutoUpdate'."
+        return $false
+    }
+
+    if ($latestVersionObj -le $currentVersionObj) {
+        Write-Verbose -Message "Your script is up-to-date (Version: $($CurrentVersion))."
+        return $true
+    }
+
+    Write-Host "A new version ($($latestVersionString)) is available for the '$($UpdateChannel)' channel!" -ForegroundColor Yellow
+
+    $versionDetails = $versionInfo.changelog.$latestVersionString
+    if ($versionDetails.notes) {
+        Write-Host -Message "What's new:"
+        $versionDetails.notes | ForEach-Object { Write-Host -Message " - $_" }
+    }
     #endregion
 
     #region --- UPDATE EXECUTION ---
@@ -117,16 +216,19 @@ function Invoke-ScriptUpdateCheck {
         $releaseApiUrl = "https://api.github.com/repos/$($githubUser)/$($githubRepo)/releases/tags/v$($latestVersionString)"
         Write-Verbose -Message "Getting release information from $($releaseApiUrl)"
         $releaseInfo = Invoke-RestMethod -Uri $releaseApiUrl -ErrorAction Stop
-        $downloadUrl = ($releaseInfo.assets | Where-Object { $_.name -eq $versionInfo.scriptName }).browser_download_url
-        if (-not $downloadUrl) { throw "Could not find asset '$($versionInfo.scriptName)' in release '$($latestVersionString)'." }
 
-        $tempPath = Join-Path -Path $env:TEMP -ChildPath $versionInfo.scriptName
+        $downloadUrl = ($releaseInfo.assets | Where-Object { $_.name -eq $scriptFullName }).browser_download_url
+        if (-not $downloadUrl) { throw "Could not find asset '$($scriptFullName)' in release '$($latestVersionString)'." }
+
+        $tempPath = Join-Path -Path $env:TEMP -ChildPath $scriptFullName
         Write-Verbose -Message "Downloading signed script from $($downloadUrl)..."
         Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath -ErrorAction Stop
 
         Write-Verbose -Message "Verifying Authenticode signature..."
         $signature = Get-AuthenticodeSignature -FilePath $tempPath
         if ($signature.Status -ne 'Valid') { throw "Signature check failed! Status: $($signature.Status)." }
+
+        # The function uses the $RequiredCertificateSubject variable from the parent script scope
         if ($signature.SignerCertificate.Subject -ne $RequiredCertificateSubject) { throw "Certificate subject mismatch! Expected '$($RequiredCertificateSubject)', but got '$($signature.SignerCertificate.Subject)'." }
         Write-Verbose -Message "Signature valid and matches expected subject."
 
@@ -146,12 +248,8 @@ function Invoke-ScriptUpdateCheck {
 
     if ($RestartAfterUpdate) {
         Write-Host -Message "Restarting script..."
-
-        # --- GECORRIGEERDE SECTIE ---
-        # Bepaal dynamisch de huidige PowerShell engine (powershell.exe of pwsh.exe)
         $currentPSEngine = (Get-Process -Id $PID).Path
         Write-Verbose -Message "Restarting with engine: $($currentPSEngine)"
-
         $restartCommand = (Get-Variable -Name MyInvocation -Scope 1).Value.Line
         Start-Process -FilePath $currentPSEngine -ArgumentList "-NoProfile -Command `"$(& {$restartCommand})`""
         exit
@@ -171,9 +269,9 @@ try {
         -UpdateChannel:$UpdateChannel `
         -Rollback:$Rollback `
         -NoUpdateCheck:$NoUpdateCheck `
-        -RequiredCertificateSubject $RequiredCertificateSubject `
         -ErrorAction Stop
 
+    # Stop the script if the update check returns a fatal error
     if (-not $updateCheckResult) {
         exit
     }
@@ -185,12 +283,12 @@ try {
 Write-Host -ForegroundColor Cyan "========================================"
 Write-Host -ForegroundColor Cyan " Welcome to the Auto-Updater Test Script"
 Write-Host -ForegroundColor Cyan " This is version: $($ScriptVersion)"
-Write-Host -ForegroundColor Cyan "========================================"
+Write-Host -ForegroundColor Cyan "=======================================
 # SIG # Begin signature block
 # MIImdwYJKoZIhvcNAQcCoIImaDCCJmQCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCADDBiexmvovtSe
-# dtt99vmOQOhVJqJTnK7jXE161+fekaCCIAowggYUMIID/KADAgECAhB6I67aU2mW
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAFX30tj/wFOmPu
+# 9OFXNJSnQ4RWbkU03oTtK+oUi2ByZKCCIAowggYUMIID/KADAgECAhB6I67aU2mW
 # D5HIPlz0x+M/MA0GCSqGSIb3DQEBDAUAMFcxCzAJBgNVBAYTAkdCMRgwFgYDVQQK
 # Ew9TZWN0aWdvIExpbWl0ZWQxLjAsBgNVBAMTJVNlY3RpZ28gUHVibGljIFRpbWUg
 # U3RhbXBpbmcgUm9vdCBSNDYwHhcNMjEwMzIyMDAwMDAwWhcNMzYwMzIxMjM1OTU5
@@ -366,31 +464,31 @@ Write-Host -ForegroundColor Cyan "========================================"
 # cnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQCDJPnbfakW9j5PKjPF5dUTANBglg
 # hkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkGCSqGSIb3
 # DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEEAYI3AgEV
-# MC8GCSqGSIb3DQEJBDEiBCAUcWPTz0w5ucyhcEfWzCJvTkB7RXTXRFy59gXXZN03
-# DzANBgkqhkiG9w0BAQEFAASCAYCMy8LtdPKDX5C1ZADO/P7JdZtdKsQabQV8YfhV
-# T44HYpRQ1Eu+oHaeJ/ZAIjvc3uWZraUXmH8yGmvWSvIg0Jk43xiolFBYNHLfVta6
-# VEoQLMPxDov3l7+Or6O26Yx6OBn6mtSZ/3s5r5hDDJOfOM/4krjH1jNmDQya46Lm
-# HUY85SJ015AwjTjLADTlR1o2HokizJmfKfrYmvLAs0U3ZXVMyXWXCXriShSddrCt
-# VyFCywb6/r8rzhHzIf5OcS45B5zQlITg0HmhIluoRq+GKHX4WlVTsTdOuYeixU31
-# G3U5NKZf+H+0r4/C9tnD0rmhHYO3dFAlRppCNpedKNLZO/Ommg6/tPZMCGBDKhIY
-# +RisgZmF//YOBedOOHWvneuAVk+JEHPNk9j/QF6i1bCKdxSj2rPqoyGXu8hbnBuH
-# KvKukCZZ9qP4lnWXh/HizzAPQKm8wKaCOExGNDUzWAZc7I2VhQ25Ahqiv42gjJEc
-# YWUibn9qGFmpym6VWsaSk60dk3uhggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
+# MC8GCSqGSIb3DQEJBDEiBCAqGk9r0AMeHWnd8FjElGzDDrHRsD7tlbQHPsDsfV35
+# EjANBgkqhkiG9w0BAQEFAASCAYAXl8iwj76yurolB7zYmWcV2zh3opkt4kZD6TsA
+# qs2mw30mUGCugYSSMh4n8znORRXiu0bNPcgfTWfxSH6LGsM5B8VVwOn29tKojLXx
+# X2LMjvknYuTDRkaC8Dxzb7nz13nF4cU1T/Sg4L1nkR0DjoKzR1hgn919WxvOr0vG
+# qWG3HIvhiDeCPKMEyxPFt+M7t4VmpIYNzMXFWWtSd3oyYm8AdRaSXmCYj/3XSUih
+# hhLSCVWE+JFPS/d5jNNGXhq4KpCsFEKVu4d5qRcT1s2st0wpqg6pYSto8eBYQ0CZ
+# sJRW9fI+TbohPyHyDuxp29dIQqBv8rvUPkhyVdpnuYYFpuC5NYH/L8b0GybAiOlJ
+# 2zVFTshQEfVNfbA248hL5tp3OehJftceDGf+Nq2x+nrpdj7HBzjZ2qcjF02JDriC
+# 3tt3l7QY5Ej+H37naMAIsJxwtjsYjvLF0jbQagNs1JSaK0sHgUR7DxUr4eP4DcdP
+# XwVxqj6FVgEQFA98u0qc9P00bvShggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
 # AQEwajBVMQswCQYDVQQGEwJHQjEYMBYGA1UEChMPU2VjdGlnbyBMaW1pdGVkMSww
 # KgYDVQQDEyNTZWN0aWdvIFB1YmxpYyBUaW1lIFN0YW1waW5nIENBIFIzNgIRAKQp
 # O24e3denNAiHrXpOtyQwDQYJYIZIAWUDBAICBQCgeTAYBgkqhkiG9w0BCQMxCwYJ
-# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA2MjcxMzUzMDVaMD8GCSqGSIb3
-# DQEJBDEyBDBbKPoh4z87xbz7NBoyQCfZNPXUPIIU3u/t9SzVuhBj3+9b3sgZdlil
-# YCYffQEuoV8wDQYJKoZIhvcNAQEBBQAEggIAfdh6B8JjiEo8wioAVxIBQ7YGq5ms
-# Uy6oCsb1Ekmdbx+xyBRrRHBYjTn28IwrHRChbc6cJb/6za9X0+7xGfSGFPPhdu2p
-# 6ith/U6sFRn+xng58GKaFR440DSLFFKJX2wFSe4wrmgFdZ1XYXCfUK0B0fFzQnRB
-# wHO+KhCw7iKRFuSmzjVbVlFBusEFXIbe3nOcOc8Wqn/GkHVelF9tZZLXx5+CBVuD
-# sOCX1OXp9OjdYyuk5yEaHhQPhgGf1eib7bhl/rcotnzyMacLpNHhAQvXL+cGJ0xN
-# XjJhtRoOh4wLs8uJLnMvJQealmNPPPZCv4VKrEHFdpiN9kYhadDtPU+SLb7jLL0H
-# 6/JOCErYx/wXkYCbKP4pf3Rg84xppT8IkSH13RIdHOO1pTyKGB9iPFsgZPBYqyhD
-# fZ8uvTDUCioYPfaA3l1iZ49lY3nRaPAmwvNMY2vm2TMgJLAIY3u1s2Q+F0OaWkeb
-# ZcSt7/twgM+wvIM58l1CSkR6RawyybIqRCwzJo56JzI0mUH8tku/hNwT2cDOHwjP
-# oN3KwIOmT+Mxg91C1x1RR/gAm99eAFiCf2mCP9wibDYQ/vM0qvJbGR5W/oNSyIwg
-# 1b6+Dzky0p11OB/XTZr9CQT9acX5TRhpPKUaAHXXS14yu6dMg2E0mnUWYLNsmOgi
-# eSdWYdnFvXt1pTg=
+# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA2MjkxMTEzMjRaMD8GCSqGSIb3
+# DQEJBDEyBDCbySWhKTFIdW+hEh37p6LpRYYmAf0yx9veiuVaIl3edKCzg6izgYod
+# 99QqJ9Waj1IwDQYJKoZIhvcNAQEBBQAEggIAaqBBPAVz8fQLUihZ4K9X8rOL8Vyu
+# L8pmHGKc7xRlDCxYMKcY/TRsSOdyxLdkFPiWpRtTQJKhBEydpb1DFQbLgewDcGEo
+# E8Ak2SZjqn84JaXyefdqlOJH2qhK15TeTPsxUcOEZOvhkZcHbcZq1fEAULCMx7qE
+# k7RXXh79W/48eJkDMiARWQPRXW7TuTZ1ye0xo/HlNjtGShrDtpuTWt9QEdmIvwSS
+# wsoZQ86sZu8bZtE1WUYEeZt82BapsmoqnAFpzJOBD/V/XKIeOmJY5PoGkvI2ySFH
+# z6OLt1zrIV3nGrrKNa5EDCoPsvDE0wJtkYOnn0PX1tumtkGu2pLXCCkVVglVh35y
+# vgL4T/TY+lsOLKNCnWhyeYwVFVGgKF6C1QtA04IUVtGodO99IqOlc/3cuVugaBrs
+# 2e6FDtaTjya2IHXusxZKrLohgXHpHe5DqY0O7GT9Mb+RFGncdiydJYm5uzXObYV6
+# G8oWDoHiNz5sOB8z0X9BQEn8aMHEnabfBKGAblxHBeFWIu6saU4FnfMTJI9R7uBG
+# vpuAaRNaXv/H7QtzZUGrYCfeQ1sjb+GKsWXq8dUgQWh//A1QI30beJWbSxQUdteb
+# iILX8byOXMf9sQcKUbJ4u8jWjABsUIGfUWN1BUBqQu7r55ZVPDVHmTtlgNqkoIMX
+# /Zx8jz1bzivjzg0=
 # SIG # End signature block
