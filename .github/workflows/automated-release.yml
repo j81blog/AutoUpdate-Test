@@ -1,0 +1,113 @@
+name: Create Release From Commit
+
+# Trigger on every push to the main or dev branch
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  create-release:
+    # Only run this job if the commit message contains a version string (e.g., v1.2.3)
+    if: contains(github.event.head_commit.message, 'v')
+    runs-on: ubuntu-latest
+    permissions:
+      # Grant permissions for the Action to write content (for commits/releases)
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # A PAT is needed to allow this Action to trigger the subsequent Gist update Action
+          token: ${{ secrets.PAT_FOR_ACTIONS }}
+
+      - name: Extract version and release notes from commit message
+        id: extract_info
+        shell: bash
+        run: |
+          # The full commit message is available in the event context
+          COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
+
+          # Extract the version tag (e.g., v1.2.3) using a regex
+          if [[ $COMMIT_MESSAGE =~ (v[0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            VERSION_TAG="${BASH_REMATCH[0]}"
+            VERSION_NUMBER="${BASH_REMATCH[1]}"
+            echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+            echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
+            echo "version_found=true" >> $GITHUB_OUTPUT
+            echo "Found version: $VERSION_TAG"
+          else
+            echo "version_found=false" >> $GITHUB_OUTPUT
+            echo "No version tag found in commit message. Skipping release."
+            exit 0
+          fi
+
+          # Use the rest of the commit message as release notes
+          RELEASE_NOTES=$(echo "$COMMIT_MESSAGE" | sed -E "s/$VERSION_TAG:? ?//")
+          # Make the notes multiline-friendly for the next step's environment variable
+          echo 'release_notes<<EOF' >> $GITHUB_OUTPUT
+          echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+      - name: Read release configuration
+        id: read_config
+        shell: pwsh
+        run: |
+          $configFile = "./release.config.json"
+          if (-not (Test-Path $configFile)) {
+            Write-Error "Release config file not found at $($configFile)"
+            exit 1
+          }
+          $config = Get-Content -Path $configFile -Raw | ConvertFrom-Json
+          # Convert the array of files into a single, space-separated string
+          $assetString = $config.assetFiles -join ' '
+          echo "assets=$($assetString)" >> $GITHUB_OUTPUT
+          Write-Host "Assets to be released: $assetString"
+
+      - name: Commit and push version bump
+        if: steps.extract_info.outputs.version_found == 'true'
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit. Script version was likely already correct."
+          else
+            git commit -m "CI: Bump version to ${{ steps.extract_info.outputs.version_tag }}"
+            git push
+          fi
+
+      - name: Create GitHub Release
+        if: steps.extract_info.outputs.version_found == 'true'
+        env:
+          # The GITHUB_TOKEN is automatically provided by the Actions runner
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pass the list of assets from the config-reading step
+          ASSET_FILES: ${{ steps.read_config.outputs.assets }}
+        run: |
+          $branch = "${{ github.ref_name }}"
+          $tagName = "${{ steps.extract_info.outputs.version_tag }}"
+          $versionNumber = "${{ steps.extract_info.outputs.version_number }}"
+          $releaseNotes = "${{ steps.extract_info.outputs.release_notes }}"
+
+          # Build the argument list for the gh command
+          $releaseParams = @(
+            $tagName,
+            "--title", "Version $versionNumber",
+            "--notes", $releaseNotes
+          )
+
+          # Determine if it is a pre-release based on the branch name
+          if ($branch -eq 'dev') {
+            $releaseParams += "--prerelease"
+          }
+
+          # Add all asset files from the config to the command
+          $releaseParams += $env:ASSET_FILES
+
+          gh release create @releaseParams
+        shell: pwsh

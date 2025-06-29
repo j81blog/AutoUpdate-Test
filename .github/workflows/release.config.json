@@ -1,0 +1,6 @@
+{
+  "assetFiles": [
+    "Test-AutoUpdater.ps1"
+  ],
+  "releaseNotesSource": "git"
+}
