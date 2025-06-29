@@ -17,40 +17,66 @@ jobs:
           $isPreRelease = ${{ github.event.release.prerelease }}
           $channel = if ($isPreRelease) { 'dev' } else { 'stable' }
 
-          echo "tag_name=$tagName" >> $env:GITHUB_OUTPUT
           echo "version=$version" >> $env:GITHUB_OUTPUT
           echo "channel=$channel" >> $env:GITHUB_OUTPUT
-          Write-Host "Release: $tagName, Version: $version, Channel: $channel"
+          Write-Host "Processing Release: $tagName, Version: $version, Channel: $channel"
 
       - name: Update Gist Content
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GIST_PAT }}
           GIST_ID: "27a5c52571bddc7eff4ea21f407d4e71"
-          GIST_USER: "j81blog" # Your GitHub username
+          GIST_USER: "j81blog"
+          # Pass the body (release notes) of the release to the PowerShell step
+          RELEASE_NOTES: ${{ github.event.release.body }}
         run: |
-          # The raw URL for the Gist
           $gistRawUrl = "https://gist.githubusercontent.com/$($env:GIST_USER)/$($env:GIST_ID)/raw/"
 
           try {
-              # Download AND parse the JSON in one single, direct step into a PS object.
               Write-Host "Fetching and parsing JSON from $gistRawUrl"
               $json = Invoke-RestMethod -Uri $gistRawUrl -ErrorAction Stop
-              Write-Host "Successfully parsed Gist content into a PowerShell object."
+              Write-Host "Successfully parsed Gist content."
           } catch {
               Write-Error "Failed to fetch or parse Gist content. Error: $($_.Exception.Message)"
               exit 1
           }
 
-          # Update the PowerShell object directly in memory
-          $json.channels.${{ steps.vars.outputs.channel }}.version = "${{ steps.vars.outputs.version }}"
+          # Get the new version info from the previous step
+          $newVersion = "${{ steps.vars.outputs.version }}"
+          $channel = "${{ steps.vars.outputs.channel }}"
 
-          # Convert the modified object back to a JSON string
-          $newJsonString = $json | ConvertTo-Json -Depth 10
+          # Get the release notes from the environment variable
+          $releaseNotes = $env:RELEASE_NOTES
 
-          # Save the new string to a temporary file for the upload step
-          $newJsonString | Set-Content -Path ./versioninfo.json
+          # If a changelog entry for this new version doesn't exist, create one.
+          if (-not $json.changelog.$newVersion) {
+              Write-Host "No changelog entry found for version $newVersion. Creating a new one."
 
-          # The 'gh gist edit' command uploads the modified file.
-          gh gist edit $env:GIST_ID ./versioninfo.json
-          Write-Host "Successfully uploaded new content to Gist."
+              # Find the previous version to copy dependencies from.
+              $previousVersion = $json.channels.$channel.version
+              $newEntry = @{
+                  dependencies = $null
+                  notes        = @()
+              }
+
+              # Copy dependencies from the previous version if it exists.
+              if ($json.changelog.$previousVersion) {
+                  $newEntry.dependencies = $json.changelog.$previousVersion.dependencies
+                  Write-Host "Copied dependencies from previous version $previousVersion."
+              }
+
+              $json.changelog | Add-Member -MemberType NoteProperty -Name $newVersion -Value $newEntry
+          }
+
+          # Update the 'notes' with the body from the GitHub release.
+          # We split the string by newlines and filter out any empty lines.
+          $notesArray = $releaseNotes -split [System.Environment]::NewLine | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+          $json.changelog.$newVersion.notes = $notesArray
+          Write-Host "Updated changelog notes for version $newVersion."
+
+          # Update the version number in the correct channel.
+          $json.channels.$channel.version = $newVersion
+          Write-Host "Updated $channel channel to version $newVersion."
+
+          # Convert the full, updated object back to JSON.
+          $newJsonString = $json | ConvertTo-Json -Depth

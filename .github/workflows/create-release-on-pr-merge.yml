@@ -1,0 +1,80 @@
+name: Create Release on PR Merge
+
+# Trigger alleen als een Pull Request wordt gesloten en gemerged
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  create-release:
+    # Voer de job alleen uit als de PR is gemerged EN de titel een versie bevat
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository at merge commit
+        uses: actions/checkout@v4
+        with:
+          # Check de code uit van de commit die is gemaakt door het mergen van de PR
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Extract version from PR title
+        id: extract_info
+        shell: bash
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+
+          if [[ $PR_TITLE =~ (v[0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            VERSION_TAG="${BASH_REMATCH[0]}"
+            VERSION_NUMBER="${BASH_REMATCH[1]}"
+            echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+            echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
+            echo "version_found=true" >> $GITHUB_OUTPUT
+            echo "Found version: $VERSION_TAG"
+          else
+            echo "version_found=false" >> $GITHUB_OUTPUT
+            echo "No version tag found in PR title. Skipping release."
+            exit 0
+          fi
+
+      - name: Read release configuration
+        id: read_config
+        shell: pwsh
+        run: |
+          $configFilePath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath ".github/workflows/release.config.json"
+          if (-not (Test-Path $configFilePath)) { Write-Error "Config file not found: $($configFilePath)"; exit 1 }
+          $config = Get-Content -Path $configFilePath -Raw | ConvertFrom-Json
+          $assetString = $config.assetFiles -join ' '
+          echo "assets=$($assetString)" >> $GITHUB_OUTPUT
+          Write-Host "Assets to be released: $assetString"
+
+      - name: Create GitHub Release
+        if: steps.extract_info.outputs.version_found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET_FILES: ${{ steps.read_config.outputs.assets }}
+          # Gebruik de body van de PR als release notes
+          RELEASE_NOTES: ${{ github.event.pull_request.body }}
+        run: |
+          $baseBranch = "${{ github.event.pull_request.base.ref }}"
+          $tagName = "${{ steps.extract_info.outputs.version_tag }}"
+          $versionNumber = "${{ steps.extract_info.outputs.version_number }}"
+
+          # Gebruik de body van de PR als notes, of val terug op een generieke tekst als deze leeg is
+          $notes = if ([string]::IsNullOrWhiteSpace($env:RELEASE_NOTES)) { "Official release for version $versionNumber" } else { $env:RELEASE_NOTES }
+
+          $releaseParams = @( $tagName, "--title", "Version $versionNumber", "--notes", $notes )
+
+          # Bepaal of het een pre-release is op basis van de DOEL-branch van de PR
+          if ($baseBranch -eq 'dev') {
+            $releaseParams += "--prerelease"
+            Write-Host "PR merged into 'dev'. Creating a pre-release."
+          }
+
+          $releaseParams += $env:ASSET_FILES
+
+          gh release create @releaseParams
+        shell: pwsh
