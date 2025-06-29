@@ -1,6 +1,5 @@
 name: Create Release From Commit
 
-# Trigger on every push to the main or dev branch
 on:
   push:
     branches:
@@ -9,11 +8,10 @@ on:
 
 jobs:
   create-release:
-    # Only run this job if the commit message contains a version string (e.g., v1.2.3)
+    # Voer deze job alleen uit als de commit-boodschap een versie bevat (bv. v1.2.3)
     if: "contains(github.event.head_commit.message, 'v')"
     runs-on: ubuntu-latest
     permissions:
-      # Grant permissions for the Action to write content (for commits/releases)
       contents: write
       pull-requests: read
 
@@ -21,91 +19,85 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # A PAT is needed to allow this Action to trigger the subsequent Gist update Action
+          # Fetch all history so we can generate release notes from git log
+          fetch-depth: 0
           token: ${{ secrets.GIST_PAT }}
 
-      - name: Extract version and release notes from commit message
-        id: extract_info
-        shell: bash
-        run: |
-          COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
-
-          if [[ $COMMIT_MESSAGE =~ (v[0-9]+\.[0-9]+\.[0-9]+) ]]; then
-            VERSION_TAG="${BASH_REMATCH[0]}"
-            VERSION_NUMBER="${BASH_REMATCH[1]}"
-            echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
-            echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
-            echo "version_found=true" >> $GITHUB_OUTPUT
-            echo "Found version: $VERSION_TAG"
-          else
-            echo "version_found=false" >> $GITHUB_OUTPUT
-            echo "No version tag found in commit message. Skipping release."
-            exit 0
-          fi
-
-          RELEASE_NOTES=$(echo "$COMMIT_MESSAGE" | sed -E "s/$VERSION_TAG:? ?//")
-          echo 'release_notes<<EOF' >> $GITHUB_OUTPUT
-          echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
-          echo 'EOF' >> $GITHUB_OUTPUT
-
-      - name: Read release configuration
-        id: read_config
+      - name: Prepare and Publish Release
+        env:
+          # De GITHUB_TOKEN wordt automatisch geleverd en is nodig voor gh
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          # Build the full, absolute path to the config file using the workspace variable.
-          $configFilePath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath ".github/workflows/release.config.json"
+          # --- Stap 1: Extraheer Versie ---
+          $commitMessage = "${{ github.event.head_commit.message }}"
+          $regex = "v(\d+\.\d+\.\d+)"
+          $match = [regex]::Match($commitMessage, $regex)
 
-          if (-not (Test-Path -Path $configFilePath)) {
-            Write-Error "Release config file not found at the specified path: $($configFilePath)"
-            exit 1
+          if (-not $match.Success) {
+            Write-Host "No version tag found in commit message. Skipping release."
+            exit 0
           }
 
-          Write-Host "Reading release configuration from: $($configFilePath)"
+          $versionNumber = $match.Groups[1].Value
+          $tagName = "v$($versionNumber)"
+          Write-Host "Found version: $tagName"
+
+          # --- Stap 2: Lees Release Configuratie ---
+          $configFilePath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath ".github/workflows/release.config.json"
+          if (-not (Test-Path -Path $configFilePath)) {
+            Write-Error "Release config file not found at: $($configFilePath)"
+            exit 1
+          }
           $config = Get-Content -Path $configFilePath -Raw | ConvertFrom-Json
+          $assetFiles = $config.assetFiles
 
-          # Convert the array of files into a single, space-separated string for the next step.
-          $assetString = $config.assetFiles -join ' '
-          echo "assets=$($assetString)" >> $GITHUB_OUTPUT
-          Write-Host "Assets to be released: $assetString"
+          # --- Stap 3: Genereer Release Notes ---
+          try {
+            # Vind de meest recente tag in de geschiedenis
+            $lastTag = git describe --tags --abbrev=0
+            Write-Verbose "Generating notes for commits since tag '$($lastTag)'."
+            # Haal alle commit-boodschappen op sinds de laatste tag als een bullet list
+            $releaseNotes = git log "$($lastTag)..HEAD" --pretty=format:"- %s"
+            if ([string]::IsNullOrWhiteSpace($releaseNotes)) {
+                $releaseNotes = "No new commits found since last tag. Re-releasing version $($versionNumber)."
+            }
+          } catch {
+            Write-Warning "Could not generate release notes from Git history. Using generic notes."
+            $releaseNotes = "Official release for version $($versionNumber)."
+          }
 
-      - name: Commit and push version bump
-        if: steps.extract_info.outputs.version_found == 'true'
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add .
-
-          if git diff --staged --quiet; then
-            echo "No changes to commit. Script version was likely already correct."
-          else
-            git commit -m "CI: Bump version to ${{ steps.extract_info.outputs.version_tag }}"
-            git push
-          fi
-
-      - name: Create GitHub Release
-        if: steps.extract_info.outputs.version_found == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ASSET_FILES: ${{ steps.read_config.outputs.assets }}
-        run: |
+          # --- Stap 4: Bouw de 'gh' opdracht en voer uit ---
           $branch = "${{ github.ref_name }}"
-          $tagName = "${{ steps.extract_info.outputs.version_tag }}"
-          $versionNumber = "${{ steps.extract_info.outputs.version_number }}"
-          $releaseNotes = "${{ steps.extract_info.outputs.release_notes }}"
+          $title = "Version $versionNumber"
 
-          # Build the argument list for the gh command
-          $releaseParams = @(
+          # Bouw de argumentenlijst voor het gh commando
+          $argumentList = @(
+            "release",
+            "create",
             $tagName,
-            "--title", "Version $versionNumber",
-            "--notes", $releaseNotes
+            "--title",
+            "'$($title)'",
+            "--notes",
+            "'$($releaseNotes)'"
           )
 
           if ($branch -eq 'dev') {
-            $releaseParams += "--prerelease"
+            $argumentList += "--prerelease"
+            Write-Host "Detected 'dev' branch. Creating a pre-release."
           }
 
-          # Add all asset files from the config to the command
-          $releaseParams += $env:ASSET_FILES
+          # Voeg alle asset-bestanden uit de config toe
+          $argumentList += $assetFiles
 
-          gh release create @releaseParams
-        shell: pwsh
+          Write-Host "Executing gh release create..."
+          Write-Verbose "Arguments: $($argumentList -join ' ')"
+
+          # Voer de volledige opdracht uit
+          gh.exe @argumentList
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "gh.exe returned a non-zero exit code: $LASTEXITCODE."
+          }
+
+          Write-Host "Successfully created release and uploaded asset(s)." -ForegroundColor Green
