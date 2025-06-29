@@ -20,41 +20,37 @@ jobs:
           echo "tag_name=$tagName" >> $env:GITHUB_OUTPUT
           echo "version=$version" >> $env:GITHUB_OUTPUT
           echo "channel=$channel" >> $env:GITHUB_OUTPUT
-          Write-Output "Release: $tagName, Version: $version, Channel: $channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Release: $tagName, Version: $version, Channel: $channel"
 
       - name: Update Gist Content
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GIST_PAT }}
           GIST_ID: "27a5c52571bddc7eff4ea21f407d4e71"
+          GIST_USER: "j81blog" # Your GitHub username
         run: |
-          # Download the current raw content of the Gist
-          gh gist view $env:GIST_ID --raw > versioninfo.json
+          # The raw URL for the Gist
+          $gistRawUrl = "https://gist.githubusercontent.com/$($env:GIST_USER)/$($env:GIST_ID)/raw/"
 
           try {
-              # Attempt to parse the downloaded content. If it fails, the script will stop.
-              if (-not (Test-Path -Path ./versioninfo.json)) {
-                  Write-Error "Downloaded Gist content is empty or not found. Please check the Gist ID."
-                  exit 1
-              }
-              $content = Get-Content -Path ./versioninfo.json -Raw
-              Write-Output "Downloaded Gist content successfully." | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-              $Content | Out-String | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-              $content | ConvertFrom-Json -ErrorAction Stop
-              Write-Output "Gist content is valid JSON. Proceeding..."| Out-File -FilePath $env:GITHUB_OUTPUT -Append
+              # Download AND parse the JSON in one single, direct step into a PS object.
+              Write-Host "Fetching and parsing JSON from $gistRawUrl"
+              $json = Invoke-RestMethod -Uri $gistRawUrl -ErrorAction Stop
+              Write-Host "Successfully parsed Gist content into a PowerShell object."
           } catch {
-              Write-Error "Downloaded Gist content is NOT valid JSON. Please check the Gist content manually at https://gist.github.com/j81blog/$($env:GIST_ID)"
-              Write-Error "Error details: $($_.Exception.Message)"
-              # Exit with a non-zero code to fail the entire workflow
+              Write-Error "Failed to fetch or parse Gist content. Error: $($_.Exception.Message)"
               exit 1
           }
 
-          # Read and update the JSON with the variables from the previous step
-          $json = Get-Content -Path ./versioninfo.json -Raw | ConvertFrom-Json
+          # Update the PowerShell object directly in memory
           $json.channels.${{ steps.vars.outputs.channel }}.version = "${{ steps.vars.outputs.version }}"
+
+          # Convert the modified object back to a JSON string
           $newJsonString = $json | ConvertTo-Json -Depth 10
+
+          # Save the new string to a temporary file for the upload step
           $newJsonString | Set-Content -Path ./versioninfo.json
 
-          # Upload the modified file to update the Gist
+          # The 'gh gist edit' command uploads the modified file.
           gh gist edit $env:GIST_ID ./versioninfo.json
-          Write-Output "Successfully uploaded new content to Gist." | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Successfully uploaded new content to Gist."
