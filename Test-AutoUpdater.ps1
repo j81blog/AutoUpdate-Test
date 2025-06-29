@@ -18,29 +18,27 @@
 [CmdletBinding()]
 param (
     [Parameter(HelpMessage = "Automatically download and install the new version.")]
-    [switch]
-    $AutoUpdate,
+    [switch]$AutoUpdate,
 
     [Parameter(HelpMessage = "Restart the script with the same parameters after a successful update.")]
-    [switch]
-    $RestartAfterUpdate,
+    [switch]$RestartAfterUpdate,
 
     [Parameter(HelpMessage = "Choose the update channel: 'stable' for releases, 'dev' for testing.")]
     [ValidateSet('stable', 'dev')]
-    [string]
-    $UpdateChannel = 'stable',
+    [string]$UpdateChannel = 'stable',
 
     [Parameter(HelpMessage = "Revert to the most recent backup (.bak) file.")]
-    [switch]
-    $Rollback,
+    [switch]$Rollback,
 
     [Parameter(HelpMessage = "Skip the update check entirely.")]
-    [switch]
-    $NoUpdateCheck
+    [switch]$NoUpdateCheck,
+
+    [Parameter(HelpMessage = "Force a check for updates, even if the last check was recent.")]
+    [Switch]$ForceCheckUpdate
 )
 
 # --- Script Configuration ---
-$ScriptVersion = '1.0.11'
+$ScriptVersion = '1.1.0'
 # The required certificate subject is now a fixed configuration variable for this script.
 $RequiredCertificateSubject = 'CN=John Billekens Consultancy, O=John Billekens Consultancy, L=Schijndel, C=NL'
 
@@ -91,33 +89,29 @@ function Invoke-ScriptUpdateCheck {
     param (
 
         [Parameter(Mandatory = $true)]
-        [string]
-        $CurrentVersion,
+        [string]$CurrentVersion,
 
         [Parameter(Mandatory = $false)]
-        [switch]
-        $AutoUpdate,
+        [switch]$AutoUpdate,
 
         [Parameter(Mandatory = $false)]
-        [switch]
-        $RestartAfterUpdate,
+        [switch]$RestartAfterUpdate,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('stable', 'dev')]
-        [string]
-        $UpdateChannel = 'stable',
+        [string]$UpdateChannel = 'stable',
 
         [Parameter(Mandatory = $false)]
-        [switch]
-        $Rollback,
+        [switch]$Rollback,
 
         [Parameter(Mandatory = $false)]
-        [switch]
-        $NoUpdateCheck,
+        [switch]$NoUpdateCheck,
 
         [Parameter(Mandatory = $false)]
-        [int]
-        $CheckIntervalHours = 24
+        [int]$CheckIntervalHours = 24,
+
+        [Parameter()]
+        [Switch]$ForceCheckUpdate
     )
 
     #region --- CONFIGURATION ---
@@ -157,7 +151,7 @@ function Invoke-ScriptUpdateCheck {
     $lastCheckFile = Join-Path -Path $env:TEMP -ChildPath "$($scriptFullName)_lastupdatecheck.txt"
     if ((Test-Path -Path $lastCheckFile) -and $CheckIntervalHours -gt 0) {
         try {
-            if ((Get-Date) -lt ([datetime]::FromFileTimeUtc($(Get-Content -Path $lastCheckFile))).AddHours($CheckIntervalHours)) {
+            if ((-Not $ForceCheckUpdate) -and (Get-Date) -lt ([datetime]::FromFileTimeUtc($(Get-Content -Path $lastCheckFile))).AddHours($CheckIntervalHours)) {
                 Write-Verbose -Message "Update check skipped; last check was recent."
                 return $true
             }
@@ -190,7 +184,7 @@ function Invoke-ScriptUpdateCheck {
     }
 
     if ($latestVersionObj -le $currentVersionObj) {
-        Write-Verbose -Message "Your script is up-to-date (Version: $($CurrentVersion))."
+        Write-Verbose -Message "Your script is up-to-date (Latest Version: $($latestVersionString), Script Version: $($CurrentVersion))."
         return $true
     }
 
@@ -269,6 +263,7 @@ try {
         -UpdateChannel:$UpdateChannel `
         -Rollback:$Rollback `
         -NoUpdateCheck:$NoUpdateCheck `
+        -ForceCheckUpdate:$ForceCheckUpdate `
         -ErrorAction Stop
 
     # Stop the script if the update check returns a fatal error
@@ -287,12 +282,11 @@ Write-Host -ForegroundColor Cyan "========================================"
 
 
 
-
 # SIG # Begin signature block
 # MIImdwYJKoZIhvcNAQcCoIImaDCCJmQCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCg1dpMf6M6wAd8
-# PGuwZnqIjM3GU3mxIoytBvTUZidHiaCCIAowggYUMIID/KADAgECAhB6I67aU2mW
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAWHTg0u7fqP5AI
+# Q+jdVORZgSUcRSuYCT6mtxmVna9TqaCCIAowggYUMIID/KADAgECAhB6I67aU2mW
 # D5HIPlz0x+M/MA0GCSqGSIb3DQEBDAUAMFcxCzAJBgNVBAYTAkdCMRgwFgYDVQQK
 # Ew9TZWN0aWdvIExpbWl0ZWQxLjAsBgNVBAMTJVNlY3RpZ28gUHVibGljIFRpbWUg
 # U3RhbXBpbmcgUm9vdCBSNDYwHhcNMjEwMzIyMDAwMDAwWhcNMzYwMzIxMjM1OTU5
@@ -468,31 +462,31 @@ Write-Host -ForegroundColor Cyan "========================================"
 # cnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQCDJPnbfakW9j5PKjPF5dUTANBglg
 # hkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkGCSqGSIb3
 # DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEEAYI3AgEV
-# MC8GCSqGSIb3DQEJBDEiBCAlkVsh6fLBOlONrMvc0O28pBv+uTYgJJORbSZBYG2r
-# +DANBgkqhkiG9w0BAQEFAASCAYAOeqHhzZ2zf0Qla+w1sA1pykYmLwz9ozbBAYDP
-# Dr7Lw7GOPwKzqFmnnvGQmC5WFwi0n4XtWQwuoN/qwS3oiVzu1I4/NQSX4ZagAevc
-# 4kylrfbW0HpZtInF0+qOlIDPgVcRQo7aBc1ya2sNLyDtSJMo2V5EMahV1PZVcMW1
-# qoxda9e1+Od9khonMu6x3p+beN2eqZ6SJNk0jlh06V7uZmS4vH3KclBrLndvRukv
-# XhYgcuG9wPXE4TXxz5mGKnvQi+JuCSVSNpk9JOES4hq3r6CKRUpH+Ygh5dRUXTUa
-# HBSgWojQBRVjENvofzARJ8k/nVMpd1ucin5zyqs5GBfg8YxCUKR4xd2AL68YsSke
-# ndyx+d71mn45NKbjLS+Mm/TbqWL+bXCylOshmO17YvL4qDVvSn1yfpEHU2zq2GdQ
-# GpoQlaWo88Cxuo/3BH3j8aJzgG/3ip+klAaQIWAMA9uezvZCvI+AccWtgH3JKpel
-# vHOysguadjORVR8zliGuS4Mi+FehggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
+# MC8GCSqGSIb3DQEJBDEiBCAJGxjg3DvyQPZE7SiJKRX2On/bAkOU6LOfPfwZwU4A
+# AjANBgkqhkiG9w0BAQEFAASCAYCme/gJX/rpD/fCT59BFiV++pgcRBt0Ow3dG8zt
+# 1htzXNENtbbSqNcLh2SWlK7h8M/CBHDnngqQBWFUqMhDMc62Qb5g+NGj1R9O++vq
+# GVcVg8Al8CcBVyNOCZVin4Kh3E5q6D25hGUlXpt/OVsUtHswGf7XUbyCDZJK5p0r
+# T6CWe2lGdTAPsIQvRLWOoZtbICeFczEpdVvXBtdgo20WfL4tNdlAhPRtxbwRr+Kj
+# xjM6UNtxXNO7cNMjPPh5ejLfpLyyjKyBXlZnoZjLydgQ7AzaXVzs9jn6degYpSrd
+# /of/fv+OZPWQva8xpVRCIPuRKd+s8v3p0jXIKOGVfE4gEFbfzP4Q7OsqsMfY/L2/
+# BJU9HfFmHP+VyWzPXkqlr7OSKJiEHLfNS+9UP3ixMMGFCebqx1chTh1agsSj8ulF
+# 6yCzLYPmOiPmUd/mTSNmw6A/wDxwLzjHUPKKrNIctJPChcGN7lOjt9cEQyL4eLxP
+# w8tYCVfGtjOX6Li9nAP95huaWW6hggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
 # AQEwajBVMQswCQYDVQQGEwJHQjEYMBYGA1UEChMPU2VjdGlnbyBMaW1pdGVkMSww
 # KgYDVQQDEyNTZWN0aWdvIFB1YmxpYyBUaW1lIFN0YW1waW5nIENBIFIzNgIRAKQp
 # O24e3denNAiHrXpOtyQwDQYJYIZIAWUDBAICBQCgeTAYBgkqhkiG9w0BCQMxCwYJ
-# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA2MjkxNjA0MTlaMD8GCSqGSIb3
-# DQEJBDEyBDC9+bqrIQBDonl1CwZjJt6fz7mV1dmmfnLzbaOksphm3Q1E3TtFanZa
-# QhZoKiCeFnEwDQYJKoZIhvcNAQEBBQAEggIACsOZdQy+A8SV0+vjGTR5NpTXPVXi
-# oypeEIJNomGAQhOmKn195wUtFWOAAt0ZKMMk6MyrkHcj/KjwgYWsip4bDneRWLIz
-# GQoOPkI/3pDumIy0X57ZGTRbplFsTqo1nzIjxg7USE5Q6TzAm7O+mPKY7ZL8hCSs
-# nXO32dPiJhEn8f92YyiYAWF1nd2bEJnl/IfC8q5Ju8DwnpsBYHjkP1VrMXd2AB5R
-# 9MLbxNjRmmzazQJJo7W4NaeqbF8nlEuO0zaxviO82NQPXZJzYbanm8auVZASWWTH
-# C5YsppRBXAOLUbXyASG9EAgoiXOc596CDDxPCPtaubotVe/xHQnA88x980Emz0eR
-# SXysYrDOJ/vEHFDOjg0leFRxqIQETFIE0MtcAXyLrFvfFiRlvvmEzxOk63K1gvmX
-# 5BFM0/z7Mgu3xrEN9ycpuZPav6YXFaTNaQFQRCzxoekJbvJ0s+tgl+bR6MJaeZSm
-# B/4/lKcSmuLtLEYm5SvfE0pbXS90teY6zLxjQ3bRGQCuP9Ps4lFqbvEo0PkMppZy
-# otAcUI1tMikAFOabgmRAKKURFjtiW7Q0dp/IVCRoiLvI55Qgm8iweYJwSXFhxIb2
-# s9j4OUMn7n1/ImH+0lmPro8Bs1xH3Cy4cO0DFwTN3agOCq1buHWSGTpgRZzbMkNu
-# 79yyGhW4dZotOQw=
+# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA2MjkxNzQ0MzRaMD8GCSqGSIb3
+# DQEJBDEyBDBuippgfVPHWrWN6Bxxcipi9sk1yHPpFl11e1v4tj/PSZjqmFh/rqZb
+# HVkEHZuIXrcwDQYJKoZIhvcNAQEBBQAEggIAHdkaceJBq4uxIpgLcRXUc8tiYdsP
+# dHFfE/zjwIZ05UYtUciBEOOTrqLT7WtcJzqsFuMF8JxahVdVqNOSuspbaG8qfpsZ
+# PIQ/ZomEK5g3Lc/PwqPOBn3ZopSdvLLm7G2r9XphvLTRqUIII53gNKY0fL5Zk4tZ
+# a6UXVi7OaqphgigbKdfOUwso905YaCYfHQlMtlgNXj5CNFi/6+/MaA8kyKGdkhvd
+# 0XMAgoECAbdrRUZrvCH1qu4VPz/hmJ6NWMEoJLpSny64g6D40TN1vYo3YzU4XOZI
+# 4uPjlHCiRYDwy9OZSnwUV+P951rZNrt/r2pPJ4v939IqBE9/Pr8Gy0hPbO1HVe7d
+# YdgTv613V9b0wtxiWgV8ZIDZK1s6gksXBwh2OxGvhEMwgiShLjO2gIqnXMdibqiU
+# EIEdLusdEtI2nzHyWqLkIo1Ow/5wqxu/NtDHI6FVI8hpvQ8xgcMIAbwHOTLai1FK
+# wWktvZoDrVfN7VEwLsy0AppjprOiAMyHCL7QqA9/n8r+IbGtrlolnu5dBkSpMRy3
+# kVmERTZb/Dmv+blqu7ZzFGZQD77x5kMvD1bSJsGxpXJaSVYFVRhC2eGtlxbysRlz
+# SvQshPOvBD+DkRR3A9f77iObNVbaDr0JCS7qeQHrctZP21EmjBboZAEqMD8jqi2q
+# O6huuP9sTTNzdyo=
 # SIG # End signature block
