@@ -184,7 +184,7 @@ function Invoke-ScriptUpdateCheck {
     }
 
     if ($latestVersionObj -le $currentVersionObj) {
-        Write-Verbose -Message "Your script is up-to-date (Version: $($CurrentVersion))."
+        Write-Verbose -Message "Your script is up-to-date (Latest Version: $($latestVersionString), Script Version: $($CurrentVersion))."
         return $true
     }
 
