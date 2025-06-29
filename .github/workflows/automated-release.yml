@@ -9,7 +9,7 @@ on:
 jobs:
   create-release:
     # Only run this job if the commit message contains a version string (e.g., v1.2.3)
-    if: "contains(github.event.head_commit.message, 'v')"
+    if: contains(github.event.head_commit.message, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -38,13 +38,11 @@ jobs:
               if (Test-Path -Path $fallbackPath) {
                   $ghCliPath = $fallbackPath
                   Write-Verbose -Message "Found gh at: $($ghCliPath)"
-              }
-              else {
+              } else {
                   Write-Error -Message "GitHub CLI ('gh') could not be found. This is unexpected on a GitHub-hosted runner."
                   exit 1
               }
-          }
-          else {
+          } else {
               # Get the full path from the CommandInfo object
               $ghCliPath = $ghCliPath.Source
           }
