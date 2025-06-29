@@ -20,7 +20,7 @@ jobs:
           echo "tag_name=$tagName" >> $env:GITHUB_OUTPUT
           echo "version=$version" >> $env:GITHUB_OUTPUT
           echo "channel=$channel" >> $env:GITHUB_OUTPUT
-          Write-Host "Release: $tagName, Version: $version, Channel: $channel"
+          Write-Output "Release: $tagName, Version: $version, Channel: $channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Update Gist Content
         shell: pwsh
@@ -38,10 +38,10 @@ jobs:
                   exit 1
               }
               $content = Get-Content -Path ./versioninfo.json -Raw
-              write-Host "Downloaded Gist content successfully."
-              $Content = | Out-String
+              Write-Output "Downloaded Gist content successfully." | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+              $Content | Out-String | Out-File -FilePath $env:GITHUB_OUTPUT -Append
               $content | ConvertFrom-Json -ErrorAction Stop
-              Write-Host "Gist content is valid JSON. Proceeding..."
+              Write-Output "Gist content is valid JSON. Proceeding..."| Out-File -FilePath $env:GITHUB_OUTPUT -Append
           } catch {
               Write-Error "Downloaded Gist content is NOT valid JSON. Please check the Gist content manually at https://gist.github.com/j81blog/$($env:GIST_ID)"
               Write-Error "Error details: $($_.Exception.Message)"
@@ -57,4 +57,4 @@ jobs:
 
           # Upload the modified file to update the Gist
           gh gist edit $env:GIST_ID ./versioninfo.json
-          Write-Host "Successfully uploaded new content to Gist."
+          Write-Output "Successfully uploaded new content to Gist." | Out-File -FilePath $env:GITHUB_OUTPUT -Append
