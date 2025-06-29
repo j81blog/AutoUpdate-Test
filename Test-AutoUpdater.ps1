@@ -91,33 +91,29 @@ function Invoke-ScriptUpdateCheck {
     param (
 
         [Parameter(Mandatory = $true)]
-        [string]
-        $CurrentVersion,
+        [string]$CurrentVersion,
 
         [Parameter(Mandatory = $false)]
-        [switch]
-        $AutoUpdate,
+        [switch]$AutoUpdate,
 
         [Parameter(Mandatory = $false)]
-        [switch]
-        $RestartAfterUpdate,
+        [switch]$RestartAfterUpdate,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('stable', 'dev')]
-        [string]
-        $UpdateChannel = 'stable',
+        [string]$UpdateChannel = 'stable',
 
         [Parameter(Mandatory = $false)]
-        [switch]
-        $Rollback,
+        [switch]$Rollback,
 
         [Parameter(Mandatory = $false)]
-        [switch]
-        $NoUpdateCheck,
+        [switch]$NoUpdateCheck,
 
         [Parameter(Mandatory = $false)]
-        [int]
-        $CheckIntervalHours = 24
+        [int]$CheckIntervalHours = 24,
+
+        [Parameter()]
+        [Switch]$ForceCheckUpdate
     )
 
     #region --- CONFIGURATION ---
