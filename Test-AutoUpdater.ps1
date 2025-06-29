@@ -153,7 +153,7 @@ function Invoke-ScriptUpdateCheck {
     $lastCheckFile = Join-Path -Path $env:TEMP -ChildPath "$($scriptFullName)_lastupdatecheck.txt"
     if ((Test-Path -Path $lastCheckFile) -and $CheckIntervalHours -gt 0) {
         try {
-            if ((Get-Date) -lt ([datetime]::FromFileTimeUtc($(Get-Content -Path $lastCheckFile))).AddHours($CheckIntervalHours)) {
+            if ((-Not $ForceCheckUpdate) -and (Get-Date) -lt ([datetime]::FromFileTimeUtc($(Get-Content -Path $lastCheckFile))).AddHours($CheckIntervalHours)) {
                 Write-Verbose -Message "Update check skipped; last check was recent."
                 return $true
             }
