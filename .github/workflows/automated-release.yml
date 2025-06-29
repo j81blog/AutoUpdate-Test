@@ -8,7 +8,7 @@ on:
 
 jobs:
   create-release:
-    # Voer deze job alleen uit als de commit-boodschap een versie bevat (bv. v1.2.3)
+    # Only run this job if the commit message contains a version string (e.g., v1.2.3)
     if: "contains(github.event.head_commit.message, 'v')"
     runs-on: ubuntu-latest
     permissions:
@@ -25,11 +25,31 @@ jobs:
 
       - name: Prepare and Publish Release
         env:
-          # De GITHUB_TOKEN wordt automatisch geleverd en is nodig voor gh
+          # The GITHUB_TOKEN is automatically provided and is needed for gh
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          # --- Stap 1: Extraheer Versie ---
+          # Find the GitHub CLI (gh) executable
+          $ghCliPath = Get-Command -Name 'gh' -ErrorAction SilentlyContinue
+          if (-not $ghCliPath) {
+              Write-Verbose -Message "Could not find 'gh' in PATH. Checking default installation directory..."
+              # On Linux runners, the default location is different
+              $fallbackPath = "/usr/bin/gh"
+              if (Test-Path -Path $fallbackPath) {
+                  $ghCliPath = $fallbackPath
+                  Write-Verbose -Message "Found gh at: $($ghCliPath)"
+              }
+              else {
+                  Write-Error -Message "GitHub CLI ('gh') could not be found. This is unexpected on a GitHub-hosted runner."
+                  exit 1
+              }
+          }
+          else {
+              # Get the full path from the CommandInfo object
+              $ghCliPath = $ghCliPath.Source
+          }
+
+          # Extract the version from the commit message
           $commitMessage = "${{ github.event.head_commit.message }}"
           $regex = "v(\d+\.\d+\.\d+)"
           $match = [regex]::Match($commitMessage, $regex)
@@ -43,7 +63,7 @@ jobs:
           $tagName = "v$($versionNumber)"
           Write-Host "Found version: $tagName"
 
-          # --- Stap 2: Lees Release Configuratie ---
+          # Read the release configuration from the JSON file
           $configFilePath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath ".github/workflows/release.config.json"
           if (-not (Test-Path -Path $configFilePath)) {
             Write-Error "Release config file not found at: $($configFilePath)"
@@ -52,12 +72,12 @@ jobs:
           $config = Get-Content -Path $configFilePath -Raw | ConvertFrom-Json
           $assetFiles = $config.assetFiles
 
-          # --- Stap 3: Genereer Release Notes ---
+          # Generate release notes from Git history
           try {
-            # Vind de meest recente tag in de geschiedenis
+            # Find the most recent tag in the history
             $lastTag = git describe --tags --abbrev=0
             Write-Verbose "Generating notes for commits since tag '$($lastTag)'."
-            # Haal alle commit-boodschappen op sinds de laatste tag als een bullet list
+            # Get all commit subjects since the last tag as a bulleted list
             $releaseNotes = git log "$($lastTag)..HEAD" --pretty=format:"- %s"
             if ([string]::IsNullOrWhiteSpace($releaseNotes)) {
                 $releaseNotes = "No new commits found since last tag. Re-releasing version $($versionNumber)."
@@ -67,37 +87,29 @@ jobs:
             $releaseNotes = "Official release for version $($versionNumber)."
           }
 
-          # --- Stap 4: Bouw de 'gh' opdracht en voer uit ---
+          # Build the gh command and execute
           $branch = "${{ github.ref_name }}"
           $title = "Version $versionNumber"
 
-          # Bouw de argumentenlijst voor het gh commando
-          $argumentList = @(
-            "release",
-            "create",
-            $tagName,
-            "--title",
-            "'$($title)'",
-            "--notes",
-            "'$($releaseNotes)'"
-          )
+          # Build the argument list for the gh command
+          $argumentList = @( "release", "create", $tagName, "--title", "'$($title)'", "--notes", "'$($releaseNotes)'" )
 
           if ($branch -eq 'dev') {
             $argumentList += "--prerelease"
             Write-Host "Detected 'dev' branch. Creating a pre-release."
           }
 
-          # Voeg alle asset-bestanden uit de config toe
+          # Add all asset files from the config
           $argumentList += $assetFiles
 
           Write-Host "Executing gh release create..."
           Write-Verbose "Arguments: $($argumentList -join ' ')"
 
-          # Voer de volledige opdracht uit
-          gh.exe @argumentList
+          # Execute the full command using the found path and the call operator '&'
+          & $ghCliPath @argumentList
 
           if ($LASTEXITCODE -ne 0) {
-            throw "gh.exe returned a non-zero exit code: $LASTEXITCODE."
+            throw "gh command returned a non-zero exit code: $LASTEXITCODE."
           }
 
           Write-Host "Successfully created release and uploaded asset(s)." -ForegroundColor Green
