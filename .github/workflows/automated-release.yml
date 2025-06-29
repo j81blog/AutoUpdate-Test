@@ -10,7 +10,7 @@ on:
 jobs:
   create-release:
     # Only run this job if the commit message contains a version string (e.g., v1.2.3)
-    if: contains(github.event.head_commit.message, 'v')
+    if: "contains(github.event.head_commit.message, 'v')"
     runs-on: ubuntu-latest
     permissions:
       # Grant permissions for the Action to write content (for commits/releases)
@@ -22,16 +22,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           # A PAT is needed to allow this Action to trigger the subsequent Gist update Action
-          token: ${{ secrets.GIST_PAT }}
+          token: ${{ secrets.PAT_FOR_ACTIONS }}
 
       - name: Extract version and release notes from commit message
         id: extract_info
         shell: bash
         run: |
-          # The full commit message is available in the event context
           COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
 
-          # Extract the version tag (e.g., v1.2.3) using a regex
           if [[ $COMMIT_MESSAGE =~ (v[0-9]+\.[0-9]+\.[0-9]+) ]]; then
             VERSION_TAG="${BASH_REMATCH[0]}"
             VERSION_NUMBER="${BASH_REMATCH[1]}"
@@ -45,9 +43,7 @@ jobs:
             exit 0
           fi
 
-          # Use the rest of the commit message as release notes
           RELEASE_NOTES=$(echo "$COMMIT_MESSAGE" | sed -E "s/$VERSION_TAG:? ?//")
-          # Make the notes multiline-friendly for the next step's environment variable
           echo 'release_notes<<EOF' >> $GITHUB_OUTPUT
           echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
           echo 'EOF' >> $GITHUB_OUTPUT
@@ -56,13 +52,18 @@ jobs:
         id: read_config
         shell: pwsh
         run: |
-          $configFile = "./release.config.json"
-          if (-not (Test-Path $configFile)) {
-            Write-Error "Release config file not found at $($configFile)"
+          # Build the full, absolute path to the config file using the workspace variable.
+          $configFilePath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath ".github/workflows/release.config.json"
+
+          if (-not (Test-Path -Path $configFilePath)) {
+            Write-Error "Release config file not found at the specified path: $($configFilePath)"
             exit 1
           }
-          $config = Get-Content -Path $configFile -Raw | ConvertFrom-Json
-          # Convert the array of files into a single, space-separated string
+
+          Write-Host "Reading release configuration from: $($configFilePath)"
+          $config = Get-Content -Path $configFilePath -Raw | ConvertFrom-Json
+
+          # Convert the array of files into a single, space-separated string for the next step.
           $assetString = $config.assetFiles -join ' '
           echo "assets=$($assetString)" >> $GITHUB_OUTPUT
           Write-Host "Assets to be released: $assetString"
@@ -73,7 +74,7 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add .
-          # Check if there are changes to commit
+
           if git diff --staged --quiet; then
             echo "No changes to commit. Script version was likely already correct."
           else
@@ -84,9 +85,7 @@ jobs:
       - name: Create GitHub Release
         if: steps.extract_info.outputs.version_found == 'true'
         env:
-          # The GITHUB_TOKEN is automatically provided by the Actions runner
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Pass the list of assets from the config-reading step
           ASSET_FILES: ${{ steps.read_config.outputs.assets }}
         run: |
           $branch = "${{ github.ref_name }}"
@@ -101,7 +100,6 @@ jobs:
             "--notes", $releaseNotes
           )
 
-          # Determine if it is a pre-release based on the branch name
           if ($branch -eq 'dev') {
             $releaseParams += "--prerelease"
           }
