@@ -1,13 +1,11 @@
 name: Create Release on PR Merge
 
-# Trigger alleen als een Pull Request wordt gesloten en gemerged
 on:
   pull_request:
     types: [closed]
 
 jobs:
   create-release:
-    # Voer de job alleen uit als de PR is gemerged EN de titel een versie bevat
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'v')
     runs-on: ubuntu-latest
     permissions:
@@ -15,11 +13,15 @@ jobs:
       pull-requests: read
 
     steps:
-      - name: Checkout repository at merge commit
+      - name: Checkout repository on target branch
         uses: actions/checkout@v4
         with:
-          # Check de code uit van de commit die is gemaakt door het mergen van de PR
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+            # Check out the code from the target branch (e.g., 'dev' or 'main') of the PR.
+            # This ensures the workflow runs in the correct branch context.
+          ref: ${{ github.event.pull_request.base.ref }}
+            # Fetch the full history for generating release notes.
+          fetch-depth: 0
+          token: ${{ secrets.GIST_PAT }}
 
       - name: Extract version from PR title
         id: extract_info
@@ -56,25 +58,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ASSET_FILES: ${{ steps.read_config.outputs.assets }}
-          # Gebruik de body van de PR als release notes
           RELEASE_NOTES: ${{ github.event.pull_request.body }}
         run: |
           $baseBranch = "${{ github.event.pull_request.base.ref }}"
           $tagName = "${{ steps.extract_info.outputs.version_tag }}"
           $versionNumber = "${{ steps.extract_info.outputs.version_number }}"
 
-          # Gebruik de body van de PR als notes, of val terug op een generieke tekst als deze leeg is
-          $notes = if ([string]::IsNullOrWhiteSpace($env:RELEASE_NOTES)) { "Official release for version $versionNumber" } else { $env:RELEASE_NOTES }
+          $notes = if ([string]::IsNullOrWhiteSpace($env:RELEASE_NOTES)) { "Automated release for version $versionNumber" } else { $env:RELEASE_NOTES }
 
           $releaseParams = @( $tagName, "--title", "Version $versionNumber", "--notes", $notes )
 
-          # Bepaal of het een pre-release is op basis van de DOEL-branch van de PR
           if ($baseBranch -eq 'dev') {
             $releaseParams += "--prerelease"
             Write-Host "PR merged into 'dev'. Creating a pre-release."
           }
 
-          $releaseParams += $env:ASSET_FILES
+          # We need to find the files to upload from the checked-out code
+          $assetPaths = $env:ASSET_FILES.Split(' ') | ForEach-Object { Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath $_ }
+          $releaseParams += $assetPaths
 
           gh release create @releaseParams
         shell: pwsh
