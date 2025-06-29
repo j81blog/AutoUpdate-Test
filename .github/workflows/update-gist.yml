@@ -37,7 +37,10 @@ jobs:
                   Write-Error "Downloaded Gist content is empty or not found. Please check the Gist ID."
                   exit 1
               }
-              Get-Content -Path ./versioninfo.json -Raw | ConvertFrom-Json -ErrorAction Stop
+              $content = Get-Content -Path ./versioninfo.json -Raw
+              write-Host "Downloaded Gist content successfully."
+              $Content = | Out-String
+              $content | ConvertFrom-Json -ErrorAction Stop
               Write-Host "Gist content is valid JSON. Proceeding..."
           } catch {
               Write-Error "Downloaded Gist content is NOT valid JSON. Please check the Gist content manually at https://gist.github.com/j81blog/$($env:GIST_ID)"
