@@ -29,6 +29,7 @@ jobs:
           GIST_USER: "j81blog"
           # Pass the body (release notes) of the release to the PowerShell step
           RELEASE_NOTES: ${{ github.event.release.body }}
+          GIST_FILE: "versioninfo.json"
         run: |
           $gistRawUrl = "https://gist.githubusercontent.com/$($env:GIST_USER)/$($env:GIST_ID)/raw/"
 
@@ -74,9 +75,34 @@ jobs:
           $json.changelog.$newVersion.notes = $notesArray
           Write-Host "Updated changelog notes for version $newVersion."
 
+          Write-Host "=========================================================="
+          Write-Host "New Release Notes:"
+          foreach ($note in $json.changelog.$newVersion.notes) {
+              Write-Host "- $note"
+          }
+          Write-Host "=========================================================="
           # Update the version number in the correct channel.
           $json.channels.$channel.version = $newVersion
           Write-Host "Updated $channel channel to version $newVersion."
 
           # Convert the full, updated object back to JSON.
-          $newJsonString = $json | ConvertTo-Json -Depth 6
+          $newJsonString = $json | ConvertTo-Json -Depth 10
+
+          # Prepare the request body for updating the Gist
+          $body = @{
+              description = "AutoUpdate Version Info - $newVersion"
+              files = @{
+                  "$($env:GIST_FILE)" = @{
+                      content = $newJsonString
+                  }
+              }
+          }
+          # Prepare the headers for the API request
+          $headers = @{
+              Authorization = "Basic $($env:GH_TOKEN)"
+              "Content-Type" = "application/json"
+          }
+          $gistUpdateUrl = "https://api.github.com/gists/$($env:GIST_ID)"
+          Write-Host "Updating Gist at $gistUpdateUrl with new content."
+          $response = Invoke-RestMethod -Uri $gistUpdateUrl -Method Patch -Headers $headers -Body ($body | ConvertTo-Json -Depth 6) -ErrorAction Stop
+          Write-Host "Gist updated successfully. Response: $($response | ConvertTo-Json -Depth 6)"
