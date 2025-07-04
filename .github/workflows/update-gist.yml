@@ -79,4 +79,4 @@ jobs:
           Write-Host "Updated $channel channel to version $newVersion."
 
           # Convert the full, updated object back to JSON.
-          $newJsonString = $json | ConvertTo-Json -Depth
+          $newJsonString = $json | ConvertTo-Json -Depth 6
