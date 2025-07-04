@@ -9,7 +9,7 @@
 
 .NOTES
     Function Name   : Test-AutoUpdater.ps1
-    Version         : v1.0.8
+    Version         : v1.2.1
     Author          : John Billekens
 
 .LINK
@@ -38,7 +38,7 @@ param (
 )
 
 # --- Script Configuration ---
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '1.2.1'
 # The required certificate subject is now a fixed configuration variable for this script.
 $RequiredCertificateSubject = 'CN=John Billekens Consultancy, O=John Billekens Consultancy, L=Schijndel, C=NL'
 
@@ -108,6 +108,10 @@ function Invoke-ScriptUpdateCheck {
         [switch]$NoUpdateCheck,
 
         [Parameter(Mandatory = $false)]
+        [Alias('ShowDevInfo')]
+        [Switch]$ShowDevInfoIfNewerVersion = $false,
+
+        [Parameter(Mandatory = $false)]
         [int]$CheckIntervalHours = 24,
 
         [Parameter()]
@@ -151,7 +155,9 @@ function Invoke-ScriptUpdateCheck {
     $lastCheckFile = Join-Path -Path $env:TEMP -ChildPath "$($scriptFullName)_lastupdatecheck.txt"
     if ((Test-Path -Path $lastCheckFile) -and $CheckIntervalHours -gt 0) {
         try {
-            if ((-Not $ForceCheckUpdate) -and (Get-Date) -lt ([datetime]::FromFileTimeUtc($(Get-Content -Path $lastCheckFile))).AddHours($CheckIntervalHours)) {
+            if ($ForceCheckUpdate) {
+                Write-Verbose -Message "Forced update check, ignoring last check time."
+            } elseif ((Get-Date) -lt ([datetime]::FromFileTimeUtc($(Get-Content -Path $lastCheckFile))).AddHours($CheckIntervalHours)) {
                 Write-Verbose -Message "Update check skipped; last check was recent."
                 return $true
             }
@@ -165,6 +171,7 @@ function Invoke-ScriptUpdateCheck {
     Write-Verbose -Message "Checking for updates... (Channel: $($UpdateChannel))"
     try {
         $versionInfo = Invoke-RestMethod -Uri $jsonUrl -ErrorAction Stop
+        Write-Verbose -Message "Retrieved version information from $($jsonUrl)"
         Set-Content -Path $lastCheckFile -Value ((Get-Date).ToFileTimeUtc())
     } catch {
         Write-Warning -Message "Could not retrieve update information from Gist. Continuing with current version."
@@ -188,12 +195,20 @@ function Invoke-ScriptUpdateCheck {
         return $true
     }
 
-    Write-Host "A new version ($($latestVersionString)) is available for the '$($UpdateChannel)' channel!" -ForegroundColor Yellow
+    Write-Host "`r`nA new version ($($latestVersionString)) is available for the '$($UpdateChannel)' channel!" -ForegroundColor Yellow
 
     $versionDetails = $versionInfo.changelog.$latestVersionString
-    if ($versionDetails.notes) {
-        Write-Host -Message "What's new:"
-        $versionDetails.notes | ForEach-Object { Write-Host -Message " - $_" }
+    if ($versionDetails.notes -or $versionDetails.notes.Count -gt 0) {
+        Write-Host -Message "`r`nRelease Notes for version $($latestVersionString):" -ForegroundColor Cyan
+        $versionDetails.notes | ForEach-Object { Write-Host -Message " => $_" }
+    }
+    if (($ShowDevInfoIfNewerVersion -or $channelData.showDevInfo) -and [version]$versionInfo.channels.dev.version -gt $latestVersionObj) {
+        Write-Host -Message "`r`nIMPORTANT: A newer development version ($($versionInfo.channels.dev.version)) is available in the 'dev' channel." -ForegroundColor Yellow
+        Write-Host -Message "Consider switching to the 'dev' channel for the latest features and fixes." -ForegroundColor Yellow
+        if ($versionInfo.changelog.$($versionInfo.channels.dev.version).notes -or $versionInfo.changelog.$($versionInfo.channels.dev.version).notes.Count -gt 0) {
+            Write-Host -Message "`r`nDevelopment Release Notes for version $($versionInfo.channels.dev.version):" -ForegroundColor Cyan
+            $versionInfo.changelog.$($versionInfo.channels.dev.version).notes | ForEach-Object { Write-Host -Message " => $_" }
+        }
     }
     #endregion
 
@@ -215,7 +230,7 @@ function Invoke-ScriptUpdateCheck {
         if (-not $downloadUrl) { throw "Could not find asset '$($scriptFullName)' in release '$($latestVersionString)'." }
 
         $tempPath = Join-Path -Path $env:TEMP -ChildPath $scriptFullName
-        Write-Verbose -Message "Downloading signed script from $($downloadUrl)..."
+        Write-Verbose -Message "Downloading update from $($downloadUrl)..."
         Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath -ErrorAction Stop
 
         Write-Verbose -Message "Verifying Authenticode signature..."
@@ -253,7 +268,6 @@ function Invoke-ScriptUpdateCheck {
     return $true
 }
 
-
 # --- SCRIPT EXECUTION ---
 try {
     $updateCheckResult = Invoke-ScriptUpdateCheck `
@@ -285,8 +299,8 @@ Write-Host -ForegroundColor Cyan "========================================"
 # SIG # Begin signature block
 # MIImdwYJKoZIhvcNAQcCoIImaDCCJmQCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBdarSM2+oVyvKa
-# vNNMCvFdcpjbWygKi+Ax8MwJzPXRgKCCIAowggYUMIID/KADAgECAhB6I67aU2mW
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCwmMcP/zyXuUei
+# n+S/yCLrNm5YOoTaqYQvZozwFZ4jGKCCIAowggYUMIID/KADAgECAhB6I67aU2mW
 # D5HIPlz0x+M/MA0GCSqGSIb3DQEBDAUAMFcxCzAJBgNVBAYTAkdCMRgwFgYDVQQK
 # Ew9TZWN0aWdvIExpbWl0ZWQxLjAsBgNVBAMTJVNlY3RpZ28gUHVibGljIFRpbWUg
 # U3RhbXBpbmcgUm9vdCBSNDYwHhcNMjEwMzIyMDAwMDAwWhcNMzYwMzIxMjM1OTU5
@@ -462,31 +476,31 @@ Write-Host -ForegroundColor Cyan "========================================"
 # cnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQCDJPnbfakW9j5PKjPF5dUTANBglg
 # hkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkGCSqGSIb3
 # DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEEAYI3AgEV
-# MC8GCSqGSIb3DQEJBDEiBCAqOmK18DvygulatYP2KkaUZ8EIn4w8VqMBC7JMGb0S
-# JjANBgkqhkiG9w0BAQEFAASCAYB6ZCU6snAGgPVY8NtAQad3wo315eV8boB8N1DV
-# SP3fYXlE8aUlZxGJOg8icV3qIUSmjXTcsIuCzNe0Q7Ugh2Hocdo7nDD4SennoTfM
-# BityNi9x6DRUeLKyMhfSq6MHWgaOB934jN/Ev1Lpe/tBQT0VCMIyUoOFemSxL8Et
-# IWMHrPuWW4r8O6TuWjTewL5BQzDh3oiW6M0EMf1rMMzu+UWWwqg0UhIoLHzF79Lm
-# jG3epGYOtQek50ByteSGrssu9uTkh24PS/gYCEhYP45RF07Fgjf04zu4xDtYI44M
-# OlP2PjOtzCNVieQhBHC+Rw4QYOWeVuioQHsxgCBEPlole8UAl6XZP6PncKIm6j3u
-# REhUeJTBJvlWazlVHoDb/XwVcgGTEwjV2odPZg3ERNGyLX0+TEJaZQCZlZG1KAmt
-# 2zH5fYWWSVosUHBM/WbDwLKL9bKv6IYLmAjWhzl2+rV9QicH0cADVIh4AHDGIqF6
-# bN9CcGiZ4/tsXQ06sf2FMAcn+kmhggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
+# MC8GCSqGSIb3DQEJBDEiBCDrYEuSVH/Q/taoqnJ5qS673h5ot3dzSE9Oc+/CWewo
+# VzANBgkqhkiG9w0BAQEFAASCAYAGJwNKpBAFcq2VODqWkUgxbFf2RnZ1piasm6sY
+# Ixy7f+xALRR+ryx9knNa5MsYn8F80OFVOYwLbzuP2NnzPXc6nFZiAFnJJsn3G8y6
+# DLOyE5oLXWrNUkmBTZpz4tAjEwN4/NEm7jgqytAZDYHwr7DkjPs2VVG07dcvaLRW
+# vEKluYxLUq/bu439VUiNMZVTQBZTTuR4MLU1guB6df4MgAOCpUdPdcRihKvc6wlb
+# kBMjbHSppL81PQR2GiL15X0W2QxSlHFPhTJMIo3iFRkLZpQ9LG/2bXDUOJkhEA5S
+# 9rN/sC6E5EQVkOYypih6P+2v02PDMd7qm2gonJ22ymD57T+4Pyi3KFMwf+02+mrO
+# nAufN83zSnMThGhL/9o3qmL8JETuO91RYjJPxRVSgWsMkHoaLziQrLkKNHeNU8NZ
+# YeQrbyAIgshZ0YhaJ81ANbaYW0x81Bq7N4LRrkGZ8hyjqn9FuCkGPGJ6SJes8YSA
+# LW+R+Ps7Tni/yeX2L51JW1fdPOqhggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
 # AQEwajBVMQswCQYDVQQGEwJHQjEYMBYGA1UEChMPU2VjdGlnbyBMaW1pdGVkMSww
 # KgYDVQQDEyNTZWN0aWdvIFB1YmxpYyBUaW1lIFN0YW1waW5nIENBIFIzNgIRAKQp
 # O24e3denNAiHrXpOtyQwDQYJYIZIAWUDBAICBQCgeTAYBgkqhkiG9w0BCQMxCwYJ
-# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA2MjkxODI0NTFaMD8GCSqGSIb3
-# DQEJBDEyBDCBjGTOZiZcdGw1nuNdmm8y1zfSmnKZyYUDcSH9Nq/jEZ68qIispXBP
-# AEC24V5zY4cwDQYJKoZIhvcNAQEBBQAEggIAlKHHUTN7ptiKGKOvlPt410wDxlSK
-# mE+RXnYD+1FZ8PjkOnNFGh4c7+VNLOZRM/VTa3bpErkVu9+yp1hZWT3EsgoQmFkc
-# oYkABtyolwCCZ/dLIWMUAm8svrrkbOYD3QLjK4+vzUXyBV6soXKYktHeRkVQ9Eje
-# NpA85V+Xfp+KJoVbMlEb+1pmt+Ma6fTRRL0dmfe2IRjMNZCgm9QbVmkVWPQ15s0m
-# bGuvyabqUD9IBkYd79d1wXUVFx2gF2krJKbYeg8bCxF4im9W/vvS2KcsDPE9ezwV
-# 36NFmzuMnG6DJY3yqSXBkzV+NTDNJ/iu5sAjFtKwFbX5U8qkXIUuSjpuv+YP6DDt
-# q+jue00z42QIjDfTFYqZVkgwY7xh4ZYm5wKfMPjELw5GnovieSXFS2b1Ch7yzOVZ
-# yvIkfJNTG/33oV/EJng4fQeQRRNcSMw9LNeGjzprHbL6Z/6+KS9JLnH0yKmzx632
-# UBXNBTLX54rAXxKypIwTG4Za8iTvQ6OgOUoNjSuC0/uyD6XE1JAxlujS6SaWtqma
-# fdOUe4IORlwG4TJlIIXrThq4sIt8PWIdw2x3uEmD+UeJDXcNx34tSmThKxT1COQW
-# xCbDVvBWnx+wN22TmOZqEskqLx+XHJAcgLpqAfprNZUZLtOgbs9iLrT0dtlNOuE0
-# 87XKkWaIfj5OUCo=
+# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA3MDQxODU2NTFaMD8GCSqGSIb3
+# DQEJBDEyBDAPY2u27ge38blkzARiJeqY4atcRvfYR8nXiwu3btsKqcMF30tEMt12
+# E1XNb9v5LxswDQYJKoZIhvcNAQEBBQAEggIAZbzdnleqWZVEGTaPeAoN/mYz6a7F
+# 7YlzF4Pub6g4gziwUdFrEnvKh1qUFeP/+5IcDFxSMGrxzltGQJvYdTJa6JhSWyzt
+# fidY3/OrNCK9EQvF039FJ8RLm5A9Z6q0r86wIEgB2zAHBGMQNDwZR481fTN3C8o7
+# 23GHQYNkjsXLdspwj0pYJFoqNMDrQRf57DX4T1rDUgYLKNgtBUMrRD+IpBPjeVK7
+# PVi5uip88ekgNBvoeW/EfoNCQ8/PEBBAj6u5oQ+g5yXU/ottb0iC7JP3EWsoPynk
+# wszv+K1KC6D+rzfT+0UWsf/JWtkF1khwHkXD4rUmvVdnQWjXdpn36UxJGuI/WCcg
+# faNUKH6BPPRJuPmWFTSFCdD7Cy6jPJxfzfuAFv+ef5ld98Bj2Py+puThCuEGFLpl
+# JDbYUnz8xjxjVUu7naRXiqm6cQuWwit8ZXFpCMxFKkA/VPPbqJgiv8u/zmFbWvnY
+# YTp8lp07IV36z9HOaBQ9SASlsk4JEMYqYC9fPGLzPeDBfUvE8e3qHp+szcc7hvhD
+# R7CuA1yNV11Y7j5FZbQP7hVO1QQXfrmk6Zbhe3WgBusTgYFVN/gvWf2AEJqZmDev
+# 20wvvyuV2khUMHc7zYqYxtOMWqPHvTZzOfOlbPX7XjM2AGSzFY4WRvf+lZVeeqFA
+# 0o7k6Fk5hl0wFxw=
 # SIG # End signature block
