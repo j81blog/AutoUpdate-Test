@@ -27,8 +27,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GIST_PAT }}
           GIST_ID: "27a5c52571bddc7eff4ea21f407d4e71"
           GIST_USER: "j81blog"
-          # Pass the body (release notes) of the release to the PowerShell step
-          RELEASE_NOTES: ${{ github.event.release.body }}
           GIST_FILE: "versioninfo.json"
         run: |
           $gistRawUrl = "https://gist.githubusercontent.com/$($env:GIST_USER)/$($env:GIST_ID)/raw/"
@@ -46,8 +44,15 @@ jobs:
           $newVersion = "${{ steps.vars.outputs.version }}"
           $channel = "${{ steps.vars.outputs.channel }}"
 
-          # Get the release notes from the environment variable
-          $releaseNotes = $env:RELEASE_NOTES
+          # Import PowerShell Functions
+          Write-Host "Importing PowerShell functions from $ENV:GITHUB_WORKSPACE/.github/workflows/PowerShellFunctions.ps1"
+          . $ENV:GITHUB_WORKSPACE/.github/workflows/PowerShellFunctions.ps1
+
+          # Retrieve the release notes by name
+          $releaseNotes = Get-GitHubCommitDescriptionByName -PersonalAccessToken $env:GH_TOKEN `
+              -Owner $Env:GITHUB_REPOSITORY_OWNER `
+              -$Repository $Env:GITHUB_REPOSITORY `
+              -CommitName $newVersion
 
           # If a changelog entry for this new version doesn't exist, create one.
           if (-not $json.changelog.$newVersion) {
@@ -56,7 +61,10 @@ jobs:
               # Find the previous version to copy dependencies from.
               $previousVersion = $json.channels.$channel.version
               $newEntry = @{
-                  dependencies = $null
+                  dependencies = @{
+                      minPSVersion = "5.1"
+                      modules = @()
+                  }
                   notes        = @()
               }
 
@@ -99,8 +107,8 @@ jobs:
           }
           # Prepare the headers for the API request
           $headers = @{
-              Authorization = "Basic $($env:GH_TOKEN)"
-              "Content-Type" = "application/json"
+              Authorization = "Bearer $($env:GH_TOKEN)"
+              Accept = "application/vnd.github+json"
           }
           $gistUpdateUrl = "https://api.github.com/gists/$($env:GIST_ID)"
           Write-Host "Updating Gist at $gistUpdateUrl with new content."

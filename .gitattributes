@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# exclude .gitignore and similar from the generated tarball
+.git*           export-ignore
