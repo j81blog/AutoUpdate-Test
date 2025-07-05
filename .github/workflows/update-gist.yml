@@ -46,6 +46,13 @@ jobs:
 
           # Import PowerShell Functions
           $powerShellFunctionsPath = "$ENV:GITHUB_WORKSPACE/.github/workflows/PowerShellFunctions.ps1"
+          Write-Host "==========================================================="
+          Get-Variable | Out-String
+          Write-Host "==========================================================="
+          ls env: | out-String
+          Write-Host "==========================================================="
+          ls $ENV:GITHUB_WORKSPACE | Out-String
+          Write-Host "==========================================================="
           if (-not (Test-Path -Path $powerShellFunctionsPath)) {
               Write-Error "PowerShell functions file not found at $powerShellFunctionsPath"
               exit 1
