@@ -45,8 +45,13 @@ jobs:
           $channel = "${{ steps.vars.outputs.channel }}"
 
           # Import PowerShell Functions
+          $powerShellFunctionsPath = "$ENV:GITHUB_WORKSPACE/.github/workflows/PowerShellFunctions.ps1"
+          if (-not (Test-Path -Path $powerShellFunctionsPath)) {
+              Write-Error "PowerShell functions file not found at $powerShellFunctionsPath"
+              exit 1
+          }
           Write-Host "Importing PowerShell functions from $ENV:GITHUB_WORKSPACE/.github/workflows/PowerShellFunctions.ps1"
-          . $ENV:GITHUB_WORKSPACE/.github/workflows/PowerShellFunctions.ps1
+          . "${ENV:GITHUB_WORKSPACE}/.github/workflows/PowerShellFunctions.ps1"
 
           # Retrieve the release notes by name
           $releaseNotes = Get-GitHubCommitDescriptionByName -PersonalAccessToken $env:GH_TOKEN `
