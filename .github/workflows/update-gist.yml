@@ -13,7 +13,6 @@ jobs:
         shell: pwsh
         run: |
           $owner, $repository = "${{ github.repository }}" -split '/'
-          $VerbosePreference = 'Continue'
           $tagName = "${{ github.event.release.tag_name }}"
           $version = $tagName -replace '^v'
 
@@ -37,7 +36,7 @@ jobs:
               } else {
                   $channel = 'stable'
               }
-              Write-Verbose "Determined channel: $channel"
+              Write-Host "Determined channel: $channel"
           } catch {
               Write-Error "Failed to retrieve release information for '$tagName'. Error: $($_.Exception.Message)"
               exit 1
@@ -50,11 +49,11 @@ jobs:
         shell: pwsh
         env:
           PAT_TOKEN: ${{ secrets.GIST_PAT }}
-          GIST_ID: "27a5c52571bddc7eff4ea21f407d4e71"
-          GIST_FILE: "versioninfo.json"
         run: |
           $owner, $repository = "${{ github.repository }}" -split '/'
-          $gistRawUrl = "https://gist.githubusercontent.com/$($owner)/$($env:GIST_ID)/raw/"
+          $gistId = "${{ vars.GIST_ID }}"
+          $gistFileName = "${{ vars.GIST_FILE }}"
+          $gistRawUrl = "https://gist.githubusercontent.com/$($owner)/$($gistId)/raw/"
           $VerbosePreference = 'Continue'
           try {
               Write-Host "Fetching and parsing JSON from $($gistRawUrl)"
@@ -152,8 +151,7 @@ jobs:
               -PersonalAccessToken $($env:PAT_TOKEN) `
               -Owner $owner `
               -Repository $repository `
-              -CommitName "v$($newVersion)" `
-              -Verbose
+              -CommitName "v$($newVersion)"
           Write-Verbose "Release notes retrieved: $($releaseNotes)"
 
           # If a changelog entry for this new version doesn't exist, create one.
@@ -202,7 +200,7 @@ jobs:
           $body = @{
               description = "AutoUpdate Version Info - $($newVersion)"
               files = @{
-                  "$($env:GIST_FILE)" = @{
+                  "$($gistFileName)" = @{
                       content = $newJsonString
                   }
               }
@@ -212,7 +210,39 @@ jobs:
               Authorization = "Bearer $($env:PAT_TOKEN)"
               Accept = "application/vnd.github+json"
           }
-          $gistUpdateUrl = "https://api.github.com/gists/$($env:GIST_ID)"
+          $gistUpdateUrl = "https://api.github.com/gists/$($gistId)"
           Write-Host "Updating Gist at $($gistUpdateUrl) with new content."
           $response = Invoke-RestMethod -Uri $gistUpdateUrl -Method Patch -Headers $headers -Body ($body | ConvertTo-Json -Depth 6) -ErrorAction Stop
           Write-Host "Gist updated successfully. Response: $($response | ConvertTo-Json -Depth 6)"
+
+      - name: Test Gist Update
+        shell: pwsh
+        env:
+          PAT_TOKEN: ${{ secrets.GIST_PAT }}
+        run: |
+          $owner, $repository = "${{ github.repository }}" -split '/'
+          $gistId = "${{ vars.GIST_ID }}"
+          $gistFileName = "${{ vars.GIST_FILE }}"
+          $version = "${{ steps.vars.outputs.version }}"
+          $channel = "${{ steps.vars.outputs.channel }}"
+          $gistRawUrl = "https://gist.githubusercontent.com/$($owner)/$($gistId)/raw/$($gistFileName)"
+          Write-Host "Testing Gist update at $($gistRawUrl) for version $(version) in channel $($channel) to check if the version is set and contains release notes."
+          try {
+              $json = Invoke-RestMethod -Uri $gistRawUrl -ErrorAction Stop
+              Write-Host "Successfully fetched Gist content for testing."
+              if ($json.channels.$channel.version -eq $version) {
+                  Write-Host "Version in Gist matches the expected version: $($version)."
+              } else {
+                  Write-Error "Version mismatch! Expected: $($version), Found: $($json.channels.$channel.version)"
+                  exit 1
+              }
+              if ($json.changelog.$version -and $json.changelog.$version.notes.Count -gt 0) {
+                  Write-Host "Release notes for version $($version) are present in the Gist."
+              } else {
+                  Write-Error "Release notes for version $($version) are missing in the Gist."
+                  exit 1
+              }
+          } catch {
+              Write-Error "Failed to fetch Gist content for testing. Error: $($_.Exception.Message)"
+              exit 1
+          }
