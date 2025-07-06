@@ -27,8 +27,7 @@ jobs:
       - name: Update Gist Content
         shell: pwsh
         env:
-          GIST_TOKEN: ${{ secrets.GIST_PAT }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAT_TOKEN: ${{ secrets.GIST_PAT }}
           GIST_ID: "27a5c52571bddc7eff4ea21f407d4e71"
           GIST_USER: "j81blog"
           GIST_FILE: "versioninfo.json"
@@ -128,7 +127,7 @@ jobs:
           Write-Verbose "Retrieving release notes for version $($newVersion) in channel $($channel)."
           # Retrieve the release notes by name
           $releaseNotes = Get-GitHubCommitDescriptionByName `
-              -PersonalAccessToken $($env:GH_TOKEN) `
+              -PersonalAccessToken $($env:PAT_TOKEN) `
               -Owner $($Env:GITHUB_REPOSITORY_OWNER) `
               -Repository $($Env:GITHUB_REPOSITORY) `
               -CommitName $($newVersion)
@@ -188,7 +187,7 @@ jobs:
           }
           # Prepare the headers for the API request
           $headers = @{
-              Authorization = "Bearer $($env:GIST_TOKEN)"
+              Authorization = "Bearer $($env:PAT_TOKEN)"
               Accept = "application/vnd.github+json"
           }
           $gistUpdateUrl = "https://api.github.com/gists/$($env:GIST_ID)"

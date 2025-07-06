@@ -9,7 +9,7 @@
 
 .NOTES
     Function Name   : Test-AutoUpdater.ps1
-    Version         : v1.2.12
+    Version         : v1.2.13
     Author          : John Billekens
 
 .LINK
@@ -38,7 +38,7 @@ param (
 )
 
 # --- Script Configuration ---
-$ScriptVersion = 'v1.2.12'
+$ScriptVersion = 'v1.2.13'
 # The required certificate subject is now a fixed configuration variable for this script.
 $RequiredCertificateSubject = 'CN=John Billekens Consultancy, O=John Billekens Consultancy, L=Schijndel, C=NL'
 
@@ -78,7 +78,7 @@ function Invoke-ScriptUpdateCheck {
 
 .NOTES
     Function Name   : Invoke-ScriptUpdateCheck
-    Version         : v1.2.12
+    Version         : v1.2.13
     Author          : John Billekens
 
 .LINK
@@ -299,8 +299,8 @@ Write-Host -ForegroundColor Cyan "========================================"
 # SIG # Begin signature block
 # MIImdwYJKoZIhvcNAQcCoIImaDCCJmQCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCusGexqnKrqceW
-# FoYOJD46NLQrF9B/K8ssx9Go/fcpDKCCIAowggYUMIID/KADAgECAhB6I67aU2mW
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBTPfGbBCwxqRm9
+# 28HMFnvPaJ5hXvRXJOok5MUaYrq/9KCCIAowggYUMIID/KADAgECAhB6I67aU2mW
 # D5HIPlz0x+M/MA0GCSqGSIb3DQEBDAUAMFcxCzAJBgNVBAYTAkdCMRgwFgYDVQQK
 # Ew9TZWN0aWdvIExpbWl0ZWQxLjAsBgNVBAMTJVNlY3RpZ28gUHVibGljIFRpbWUg
 # U3RhbXBpbmcgUm9vdCBSNDYwHhcNMjEwMzIyMDAwMDAwWhcNMzYwMzIxMjM1OTU5
@@ -476,31 +476,31 @@ Write-Host -ForegroundColor Cyan "========================================"
 # cnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQCDJPnbfakW9j5PKjPF5dUTANBglg
 # hkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkGCSqGSIb3
 # DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEEAYI3AgEV
-# MC8GCSqGSIb3DQEJBDEiBCCpfXkfX/uWtnwTgq0ZI+HLuL1QauNoBX7HJDRTQW9L
-# LzANBgkqhkiG9w0BAQEFAASCAYCDbDEDtWHVi47Q2JrikmFSvCFhbT3HJMzqoKj3
-# 6A5jkFvn4P4z0S3peNje3vaF7fRvS2Y6YJrLyzWEDJgAmCnBW2SdBqX8jbArL2/o
-# FgLCIwPlE+Sj7VtuZkHOeVMNm3L1ZVegZeiKJOVLLSj6EJFxMV5drN5he+CZycoc
-# FxFzgpK+VXD5r1UmvTffF5OpJJE9SuaJM7aowE5ZNq/OcV2MsDpcJHjiczAVXKPP
-# TU8ELMyZd6c5+0w2JPINbSSLAm5mJUJqIUiJTrAptKCd2jltsIceCxiL+gd8S002
-# ReX4ZKnpReFHL3m52HokUwnfGn0u05Wb+u9L+aanZq+waPAmbNZdgSZjKMgawveM
-# 5G4tX/5JD45RauHwtlevn8p0I2rbOrmghYEwGV/GvOrCCige3xWZrC2iSgNdymUB
-# AaEYdQBkBL1ERAJ4Bt863b4eh17xDLVApdmylPII5cLIxvGvlvWslVHDg1okWjyc
-# 5zw7VP73WKXDMuxM/u65xAS49L6hggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
+# MC8GCSqGSIb3DQEJBDEiBCDPevVDYpLoG65Ty8OZ3MikAvapwXqL128Be1bFUySX
+# 2jANBgkqhkiG9w0BAQEFAASCAYAW2UASnCfrD7Lt4L4xDt8VV+9xI6WEPaofVfs0
+# H8owbQq/TSfmRLB7pCcoRUaGNR01xSPIfnczfzQXng6fzZ6ufGh02vJqhsjFzhWK
+# OzjqMA78X8Na006An8I1GqwHAdY6YlMH7/7sFN7drfEJeHA1SH0ZOoWyZ8zeR9fj
+# B3vzvss39NZZ4GyBDg57pqiphkgG5snUTbURjh97ebyqfPUfGXij4ObkkyZkPRCG
+# fMfxPbxgFK39a6KJsbrqK1dHSI4B9dYpUztTGpv90eZc8semfvFLPC2t6igyLCaI
+# IbT5fYTdkJe49XX/URo4u+jZ5XjhDn16s7KEp0cl0Mo61xQIMlVdLhJZnWvoWhMy
+# j0mssuYbr+kQxgcsFC2OCanICgndqrZdnnmXC90WNnD+BW70+i6MNs6J4UBFWNNk
+# IjLBSA4uwmf478u9YgemtnDwGrct+qnAoklCeISox/JqvBkMu2oTj1eGrf+WOUgS
+# 89dkdYHZdxJK4VMWznNaIQGOjAChggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
 # AQEwajBVMQswCQYDVQQGEwJHQjEYMBYGA1UEChMPU2VjdGlnbyBMaW1pdGVkMSww
 # KgYDVQQDEyNTZWN0aWdvIFB1YmxpYyBUaW1lIFN0YW1waW5nIENBIFIzNgIRAKQp
 # O24e3denNAiHrXpOtyQwDQYJYIZIAWUDBAICBQCgeTAYBgkqhkiG9w0BCQMxCwYJ
-# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA3MDYxMjIwNTlaMD8GCSqGSIb3
-# DQEJBDEyBDDODev8UCmS5Bo/424zxL6GoxGxdTX+1ZCVow1BaLu9Yy6PMTEjcrTY
-# 7QmePX7r/WwwDQYJKoZIhvcNAQEBBQAEggIAeZVdI0JvzHAi6tBLH2j39FPS5vuL
-# ip0JSDxTvCOj8Yj3C07xXal40rcaeCjWuDFYrjhW9b/acN0ODjjSS7/thhbilg5d
-# m1MFn1Aj2HDtTsCFNhxC927fFMApJ8sqhbGfKBRGi6J/HRYmcGowkPWK9x5QSluJ
-# Cp9jM9rHm/Pqj+eaxLS8K4gpHwP+Ww33D2T2TOpU6PCqpnvDgjhkO1zVod8jhvwy
-# eka++DL1OVcdwsIs5Cu2+nomTpQMkDtJ1LDR5RpPLuutOwPmHIJDGTFPw2cdofuI
-# /Hfwn6TcjdlEVhjv0Kd8qIt+ehRy9KS1va8VnYz3cX/BiYdZ4GXOrhF4Osv+1Nil
-# xU4LDU3/JqU7qLGMyQ99CvI6GUrsO1tOiq+AXwnXnVgjjXzJnjdmH1ont7fU1+Nm
-# 9XWQe25urSLjjmEalNq8lvXnEzuZbfJEuMzG45EaaeGIsjFS2IXuuhwmgU9a1qON
-# ji1d3YmahG7c/7ux8DdDQBvXBxdxxHAcdnh3TaiSP2f8E3tLZ9VUQm/A1BxA6gA8
-# kAQqdCEh745GtZv69YYMJk7ft3cCGBGXeWiF3seojRLZTkeLpvjZpwnEyMO3Rg9G
-# QUCRFR5sDOGczZv16FYKQFF/hke8emaRkJFa0OYeUnPAgS2ZKJ//Tcw3djAymwiG
-# w6U7wSSS4Si/yTU=
+# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA3MDYxMjMxMjNaMD8GCSqGSIb3
+# DQEJBDEyBDDaibgi2Mf/KLRpBZ67yc/gqzUT47dWljw0n0Ve3adu0HnkjEUSdhIB
+# 0Me1CHs6NsYwDQYJKoZIhvcNAQEBBQAEggIAdqzWcHjzuIdU2xL/b0TS+F22wCuz
+# 9EXB6NbNyBSGZY1mLSkrO+4KrHY5cZQ9WxSajgQTG6NCXTPpTvc0EUVDjstae0ep
+# e5NcmLYvBe45WO4nhMvNNB/BkZxkPqA3LrxrJl17wlVEr1cmKlG4+cKuNGRfTz/m
+# WLNt4tjd6A+GA7epqTrA6JPsVDzo8fM/3ukqddjgZAhtOfnJJNd/zw6DBgNeLnq4
+# o9qpSDSkx/OKbX/4KjVITYzKExjAPpwnp+3f32VpqHEvduX5+Sj+V5wGT2iKTMzF
+# 5ckDuTXq10/p1I89pbtJhjRYn7es7ETt6Ph2ys7Y+/RPmQzkuFbCAV0bgk1rhp4a
+# lZeXHZhJgZ4zvQlGEfT5FDCcUCTAy5k4EQfYLyeYsCEk2LH1ZRmiMrbqElutUemb
+# 97x5iNML38meAsjQ+v5JoEnLTaOqgq4AyXd/iUo3RzXaqZuWsuoMIInNy7Vfrcd7
+# YMQXU4mDCLZYwkJEYCCS/zuT9TRwEJhtJtuNsa8ZuYOytr+/ybrufb0uRqe8ZW39
+# TZBDQPyvZTsfVcX+5EX2GXtLrAcBRCv4j4WSDqUFQloFkRPo7Y3CIvjRlYj8vNkO
+# CcPfJKySsHEOXIUOqOlTjcW9QJlxUzOKbi3DYO+za9wN+HOml6sloRNdX0HKs6c7
+# AsgSHeuRZUw6dEA=
 # SIG # End signature block
