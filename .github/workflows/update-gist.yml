@@ -34,6 +34,7 @@ jobs:
         run: |
           $gistRawUrl = "https://gist.githubusercontent.com/$($env:GIST_USER)/$($env:GIST_ID)/raw/"
           $VerbosePreference = 'Continue'
+          $owner, $repository = $env:GITHUB_REPOSITORY -split '/'
           try {
               Write-Host "Fetching and parsing JSON from $($gistRawUrl)"
               $json = Invoke-RestMethod -Uri $gistRawUrl -ErrorAction Stop
@@ -124,12 +125,12 @@ jobs:
               }
           }
 
-          Write-Verbose "Retrieving release notes for version $($newVersion) in channel $($channel)."
+          Write-Verbose "Retrieving release notes for version $($newVersion) in channel $($channel) in repository $($owner)/$($repository)."
           # Retrieve the release notes by name
           $releaseNotes = Get-GitHubCommitDescriptionByName `
               -PersonalAccessToken $($env:PAT_TOKEN) `
-              -Owner $($Env:GITHUB_REPOSITORY_OWNER) `
-              -Repository $($Env:GITHUB_REPOSITORY) `
+              -Owner $owner `
+              -Repository $repository `
               -CommitName $($newVersion)
               -Verbose
           Write-Verbose "Release notes retrieved: $($releaseNotes)"
