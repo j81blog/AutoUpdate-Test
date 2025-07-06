@@ -8,18 +8,18 @@ jobs:
   update-gist:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
       - name: Determine Version and Channel
         id: vars
         shell: pwsh
         run: |
+          $VerbosePreference = 'Continue'
           $tagName = "${{ github.event.release.tag_name }}"
+          Write-Verbose "Release tag name: $tagName"
           $version = $tagName -replace '^v'
           $isPreRelease = ${{ github.event.release.prerelease }}
+          Write-Verbose "PreRelease: $isPreRelease"
           $channel = if ($isPreRelease) { 'dev' } else { 'stable' }
-
+          Write-Verbose "Determined channel: $channel"
           echo "version=$version" >> $env:GITHUB_OUTPUT
           echo "channel=$channel" >> $env:GITHUB_OUTPUT
           Write-Host "Processing Release: $tagName, Version: $version, Channel: $channel"
