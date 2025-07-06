@@ -226,7 +226,7 @@ jobs:
           $version = "${{ steps.vars.outputs.version }}"
           $channel = "${{ steps.vars.outputs.channel }}"
           $gistRawUrl = "https://gist.githubusercontent.com/$($owner)/$($gistId)/raw/$($gistFileName)"
-          Write-Host "Testing Gist update at $($gistRawUrl) for version $(version) in channel $($channel) to check if the version is set and contains release notes."
+          Write-Host "Testing Gist update at $($gistRawUrl) for version $($version) in channel $($channel) to check if the version is set and contains release notes."
           try {
               $json = Invoke-RestMethod -Uri $gistRawUrl -ErrorAction Stop
               Write-Host "Successfully fetched Gist content for testing."
