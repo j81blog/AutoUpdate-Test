@@ -33,7 +33,7 @@ jobs:
           GIST_FILE: "versioninfo.json"
         run: |
           $gistRawUrl = "https://gist.githubusercontent.com/$($env:GIST_USER)/$($env:GIST_ID)/raw/"
-
+          $VerbosePreference = 'Continue'
           try {
               Write-Host "Fetching and parsing JSON from $($gistRawUrl)"
               $json = Invoke-RestMethod -Uri $gistRawUrl -ErrorAction Stop
