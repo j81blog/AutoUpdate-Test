@@ -131,7 +131,7 @@ jobs:
               -PersonalAccessToken $($env:PAT_TOKEN) `
               -Owner $owner `
               -Repository $repository `
-              -CommitName $($newVersion)
+              -CommitName "v$($newVersion)" `
               -Verbose
           Write-Verbose "Release notes retrieved: $($releaseNotes)"
 
