@@ -27,7 +27,8 @@ jobs:
       - name: Update Gist Content
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.GIST_PAT }}
+          GIST_TOKEN: ${{ secrets.GIST_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIST_ID: "27a5c52571bddc7eff4ea21f407d4e71"
           GIST_USER: "j81blog"
           GIST_FILE: "versioninfo.json"
@@ -101,14 +102,17 @@ jobs:
                   $commitResponse = Invoke-RestMethod -Uri $commitApiUrl -Headers $headers -Method Get -ErrorAction Stop
 
                   $fullCommitMessage = "$($commitResponse.commit.message)".Trim()
-
+                  Write-Verbose "Full commit message for '$($CommitName)': $($fullCommitMessage)"
                   if ($null -ne $fullCommitMessage) {
+                      Write-Verbose "Extracting commit description for '$($CommitName)'."
                       # The body of the commit message is everything after the first line (subject)
                       $messageLines = $fullCommitMessage.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)
                       if ($messageLines.Count -gt 1) {
+                          Write-Verbose "Commit message has multiple lines. Extracting body."
                           # Skip the first line (subject) and join the remaining lines to get the description/body
                           return ($messageLines | Select-Object -Skip 1) -join [Environment]::NewLine
                       } else {
+                          Write-Verbose "Commit message has only one line. Returning as description."
                           # If there's only one line, return it as the description
                           return $messageLines[0]
                       }
@@ -128,6 +132,7 @@ jobs:
               -Owner $($Env:GITHUB_REPOSITORY_OWNER) `
               -Repository $($Env:GITHUB_REPOSITORY) `
               -CommitName $($newVersion)
+              -Verbose
 
           # If a changelog entry for this new version doesn't exist, create one.
           if (-not $json.changelog.$newVersion) {
@@ -182,7 +187,7 @@ jobs:
           }
           # Prepare the headers for the API request
           $headers = @{
-              Authorization = "Bearer $($env:GH_TOKEN)"
+              Authorization = "Bearer $($env:GIST_TOKEN)"
               Accept = "application/vnd.github+json"
           }
           $gistUpdateUrl = "https://api.github.com/gists/$($env:GIST_ID)"
