@@ -8,6 +8,12 @@ jobs:
   update-gist:
     runs-on: ubuntu-latest
     steps:
+      - name: Install J81.PSScriptTools Module
+        shell: pwsh
+        run: |
+          #Install-Module -Name J81.PSScriptTools -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop
+          iex (irm https://raw.githubusercontent.com/j81blog/J81.PSScriptTools/refs/heads/dev/Install-ModuleFromGithubDev.ps1)
+
       - name: Determine Version and Channel
         id: vars
         shell: pwsh
@@ -28,9 +34,7 @@ jobs:
           try {
               $ReleaseData = Invoke-RestMethod -Uri $ReleaseUrl -Headers $Headers
               $IsPrerelease = $ReleaseData.prerelease
-
               Write-Host "Release: '$tagName'; Pre-release: $IsPrerelease"
-
               if ($IsPrerelease) {
                   $channel = 'dev'
               } else {
@@ -41,15 +45,28 @@ jobs:
               Write-Error "Failed to retrieve release information for '$tagName'. Error: $($_.Exception.Message)"
               exit 1
           }
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "channel=$channel" >> $env:GITHUB_OUTPUT
-          Write-Host "Processing Release: $tagName, Version: $version, Channel: $channel"
+          Write-HOst "Storing channel and version in outputs."
+          if (-Not [string]::IsNullOrEmpty($channel)) {
+              Write-Host "Channel determined: $channel"
+              echo "channel=$channel" >> $env:GITHUB_OUTPUT
+          } else {
+              Write-Error "Failed to determine channel for release '$tagName'."
+              exit 1
+          }
+          if (-Not [string]::IsNullOrEmpty($version)) {
+              Write-Host "Version determined: $version"
+              echo "version=$version" >> $env:GITHUB_OUTPUT
+          } else {
+              Write-Error "Failed to determine version for release '$tagName'."
+              exit 1
+          }
 
       - name: Update Gist Content
         shell: pwsh
         env:
           PAT_TOKEN: ${{ secrets.GIST_PAT }}
         run: |
+          Import-Module -Name J81.PSScriptTools -Force -ErrorAction Stop
           $owner, $repository = "${{ github.repository }}" -split '/'
           $gistId = "${{ vars.GIST_ID }}"
           $gistFileName = "${{ vars.GIST_FILE }}"
@@ -69,89 +86,16 @@ jobs:
           $channel = "${{ steps.vars.outputs.channel }}"
           Write-Host "New Version: $($newVersion), Channel: $($channel)"
 
-          function Get-GitHubCommitDescriptionByName {
-              <#
-              .SYNOPSIS
-                  Retrieves the full commit message/description for a given commit.
-              .DESCRIPTION
-                  This function fetches the commit details from the GitHub API
-                  for a specified owner, repository, and commit (SHA, branch, or tag name).
-                  It then extracts and returns the full commit message body, which often
-                  serves as release notes.
-              .PARAMETER PersonalAccessToken
-                  The GitHub Personal Access Token (PAT) used for authentication.
-                  It needs to have 'repo' scope (for private repos) or 'public_repo' for public.
-              .PARAMETER Owner
-                  The owner of the GitHub repository (user or organization name).
-              .PARAMETER Repository
-                  The name of the GitHub repository.
-              .PARAMETER CommitName
-                  The name of the commit to retrieve the description for.
-                  This can be a commit SHA, a branch name, or a tag name.
-              .NOTES
-                  Version       : 1.0
-                  Author        : John Billekens
-                  LastUpdated   : 2025-07-05
-                  Compatibility : PowerShell 5.1+
-              #>
-              [CmdletBinding()]
-              param (
-                  [Parameter(Mandatory = $true)]
-                  [Alias('PAT')]
-                  [string]$PersonalAccessToken,
-
-                  [Parameter(Mandatory = $true)]
-                  [string]$Owner,
-
-                  [Parameter(Mandatory = $true)]
-                  [string]$Repository,
-
-                  [Parameter(Mandatory = $true)]
-                  [string]$CommitName
-              )
-              try {
-                  $headers = @{
-                      "Accept"               = "application/vnd.github+json"
-                      "Authorization"        = "Bearer $($PersonalAccessToken)"
-                      "X-GitHub-Api-Version" = "2022-11-28"
-                  }
-
-                  $commitApiUrl = "https://api.github.com/repos/$($Owner)/$($Repository)/commits/$($CommitName)"
-                  Write-Verbose "Fetching commit details from GitHub API: $($commitApiUrl)"
-                  $commitResponse = Invoke-RestMethod -Uri $commitApiUrl -Headers $headers -Method Get -ErrorAction Stop
-
-                  $fullCommitMessage = "$($commitResponse.commit.message)".Trim()
-                  Write-Verbose "Full commit message for '$($CommitName)': $($fullCommitMessage)"
-                  if ($null -ne $fullCommitMessage) {
-                      Write-Verbose "Extracting commit description for '$($CommitName)'."
-                      # The body of the commit message is everything after the first line (subject)
-                      $messageLines = $fullCommitMessage.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)
-                      if ($messageLines.Count -gt 1) {
-                          Write-Verbose "Commit message has multiple lines. Extracting body."
-                          # Skip the first line (subject) and join the remaining lines to get the description/body
-                          return ($messageLines | Select-Object -Skip 1) -join [Environment]::NewLine
-                      } else {
-                          Write-Verbose "Commit message has only one line. Returning as description."
-                          # If there's only one line, return it as the description
-                          return $messageLines[0]
-                      }
-                  } else {
-                      Write-Warning "No commit message found for '$($CommitName)'."
-                      return $null
-                  }
-              } catch {
-                  Write-Error "An error occurred while fetching commit details from GitHub API: $($_.Exception.Message)"
-                  return $null
-              }
-          }
-
           Write-Verbose "Retrieving release notes for version $($newVersion) in channel $($channel) in repository $($owner)/$($repository)."
           # Retrieve the release notes by name
-          $releaseNotes = Get-GitHubCommitDescriptionByName `
-              -PersonalAccessToken $($env:PAT_TOKEN) `
-              -Owner $owner `
-              -Repository $repository `
-              -CommitName "v$($newVersion)"
+          $params @{
+              PersonalAccessToken = $env:PAT_TOKEN
+              GithubOwner = $owner
+              GithubRepo = $repository
+              CommitName = "v$newVersion"
+              Github = $true
+          }
+          $releaseNotes = Get-GitHubCommitDescriptionByName @params -ErrorAction Stop
           Write-Verbose "Release notes retrieved: $($releaseNotes)"
 
           # If a changelog entry for this new version doesn't exist, create one.
@@ -159,22 +103,24 @@ jobs:
               Write-Host "No changelog entry found for version $($newVersion). Creating a new one."
 
               # Find the previous version to copy dependencies from.
-              $previousVersion = $json.channels.$channel.version
-              $newEntry = @{
-                  dependencies = @{
-                      minPSVersion = "5.1"
-                      modules = @()
+              $newEntry = $json.changelog._newversion
+              if (-Not [String]::IsNullOrEmpty($newEntry) -and ($newEntry | gm -Type NoteProperty).Count -gt 0) {
+                  Write-Host "Used the template from the _newversion entry."
+              } else {
+                  Write-Host "No template found for _newversion. Creating a new entry."
+                  $newEntry = @{
+                      CertificateSubject = ""
+                      dependencies = @{
+                          minPSVersion = "5.1"
+                          modules = @()
+                      }
+                      notes        = @()
                   }
-                  notes        = @()
               }
-
-              # Copy dependencies from the previous version if it exists.
-              if ($json.changelog.$previousVersion) {
-                  $newEntry.dependencies = $json.changelog.$previousVersion.dependencies
-                  Write-Host "Copied dependencies from previous version $($previousVersion)."
-              }
-
               $json.changelog | Add-Member -MemberType NoteProperty -Name $newVersion -Value $newEntry
+              $json.lastupdated = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
+          } else {
+              Write-Host "Changelog entry for version $($newVersion) already exists."
           }
 
           # Update the 'notes' with the body from the GitHub release.

@@ -6,7 +6,8 @@ on:
 
 jobs:
   create-release:
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'v')
+    if: false # This job is intentionally disabled
+    #if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
