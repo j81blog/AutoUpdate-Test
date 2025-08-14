@@ -1,8 +1,12 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$GithubRepository,
 
-$owner, $repository = "${{ github.repository }}" -split '/'
-$tagName = "${{ github.event.release.tag_name }}"
+    [string]$GithubEventReleaseTagName
+)
+
+$owner, $repository = $GithubRepository -split '/'
+$tagName = $GithubEventReleaseTagName
 $version = $tagName -replace '^v'
 
 Write-Host "Tag Name: $tagName"
@@ -11,7 +15,7 @@ Write-Host "Version: $version"
 $ReleaseUrl = "https://api.github.com/repos/$($owner)/$($repository)/releases/tags/$($tagName)"
 $Headers = @{
     "Accept"               = "application/vnd.github+json"
-    "Authorization"        = "Bearer ${{ secrets.GITHUB_TOKEN }}"
+    "Authorization"        = "Bearer ${env:GITHUB_TOKEN}"
     "X-GitHub-Api-Version" = "2022-11-28"
 }
 
