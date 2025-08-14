@@ -26,8 +26,7 @@ jobs:
                 GithubRepository = "${{ github.repository }}"
                 GithubEventReleaseTagName = "${{ github.event.release.tag_name }}"
             }
-            $scriptPath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath "ci/Get-VersionAndChannel.ps1"
-            & $scriptPath @params
+            ./.github/scripts/Get-VersionAndChannel.ps1 @params
 
       - name: Update Gist Content
         shell: pwsh
@@ -42,8 +41,7 @@ jobs:
                 Version = "${{ steps.vars.outputs.version }}"
                 Channel = "${{ steps.vars.outputs.channel }}"
             }
-            $scriptPath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath "ci/Set-GistContent.ps1"
-            & $scriptPath @params
+            ./.github/scripts/Set-GistContent.ps1 @params
 
       - name: Test Gist Update
         shell: pwsh
@@ -57,5 +55,4 @@ jobs:
               Version = "${{ steps.vars.outputs.version }}"
               Channel = "${{ steps.vars.outputs.channel }}"
           }
-          $scriptPath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath "ci/Test-GistUpdate.ps1"
-          & $scriptPath @params
+          ./.github/scripts/Test-GistUpdate.ps1 @params
