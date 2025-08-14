@@ -88,7 +88,7 @@ jobs:
 
           Write-Verbose "Retrieving release notes for version $($newVersion) in channel $($channel) in repository $($owner)/$($repository)."
           # Retrieve the release notes by name
-          $params @{
+          $params = @{
               PersonalAccessToken = $env:PAT_TOKEN
               GithubOwner = $owner
               GithubRepo = $repository
