@@ -21,12 +21,15 @@ jobs:
         id: vars
         shell: pwsh
         working-directory: ${{ github.workspace }}
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
             $params = @{
                 GithubRepository = "${{ github.repository }}"
                 GithubEventReleaseTagName = "${{ github.event.release.tag_name }}"
             }
             ./.github/scripts/Get-VersionAndChannel.ps1 @params
+
 
       - name: Update Gist Content
         shell: pwsh
