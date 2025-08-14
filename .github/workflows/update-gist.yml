@@ -20,6 +20,7 @@ jobs:
       - name: Determine Version and Channel
         id: vars
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         run: |
             $params = @{
                 GithubRepository = "${{ github.repository }}"
@@ -29,6 +30,7 @@ jobs:
 
       - name: Update Gist Content
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         env:
           PAT_TOKEN: ${{ secrets.GIST_PAT }}
         run: |
@@ -43,6 +45,7 @@ jobs:
 
       - name: Test Gist Update
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         env:
           PAT_TOKEN: ${{ secrets.GIST_PAT }}
         run: |
