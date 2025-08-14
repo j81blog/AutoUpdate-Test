@@ -13,7 +13,9 @@ param(
 )
 
 $owner, $repository = $GithubRepository -split '/'
+Write-Host "Owner: $owner, Repository: $repository"
 $gistRawUrl = "https://gist.githubusercontent.com/$($owner)/$($GithubGistID)/raw/$($GithubGistFilename)"
+
 Write-Host "Testing Gist update at $($gistRawUrl) for version $($Version) in channel $($Channel) to check if the version is set and contains release notes."
 try {
     $json = Invoke-RestMethod -Uri $gistRawUrl -ErrorAction Stop

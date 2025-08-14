@@ -14,7 +14,7 @@ param(
 Import-Module -Name J81.PSScriptTools -Force -ErrorAction Stop
 $owner, $repository = $GithubRepository -split '/'
 $gistRawUrl = "https://gist.githubusercontent.com/$($owner)/$($GithubGistID)/raw/"
-$VerbosePreference = 'Continue'
+# $VerbosePreference = 'Continue'
 try {
     Write-Host "Fetching and parsing JSON from $($gistRawUrl)"
     $json = Invoke-RestMethod -Uri $gistRawUrl -ErrorAction Stop

@@ -52,10 +52,11 @@ jobs:
         env:
           PAT_TOKEN: ${{ secrets.GIST_PAT }}
         run: |
-          $params = @{
-              GithubGistID = "${{ vars.GIST_ID }}"
-              GithubGistFilename = "${{ vars.GIST_FILE }}"
-              Version = "${{ steps.vars.outputs.version }}"
-              Channel = "${{ steps.vars.outputs.channel }}"
-          }
-          ./.github/scripts/Test-GistUpdate.ps1 @params
+            $params = @{
+                GithubRepository = "${{ github.repository }}"
+                GithubGistID = "${{ vars.GIST_ID }}"
+                GithubGistFilename = "${{ vars.GIST_FILE }}"
+                Version = "${{ steps.vars.outputs.version }}"
+                Channel = "${{ steps.vars.outputs.channel }}"
+            }
+            ./.github/scripts/Test-GistUpdate.ps1 @params
