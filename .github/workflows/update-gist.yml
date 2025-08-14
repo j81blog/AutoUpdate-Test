@@ -8,6 +8,9 @@ jobs:
   update-gist:
     runs-on: windows-latest
     steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
       - name: Install J81.PSScriptTools Module
         shell: pwsh
         run: |
@@ -22,7 +25,7 @@ jobs:
                 GithubRepository = "${{ github.repository }}"
                 GithubEventReleaseTagName = "${{ github.event.release.tag_name }}"
             }
-            ./Powershell/Get-VersionAndChannel.ps1 @params
+            ./ci/Get-VersionAndChannel.ps1 @params
 
       - name: Update Gist Content
         shell: pwsh
@@ -36,7 +39,7 @@ jobs:
                 Version = "${{ steps.vars.outputs.version }}"
                 Channel = "${{ steps.vars.outputs.channel }}"
             }
-            ./Powershell/Set-GistContent.ps1 @params
+            ./ci/Set-GistContent.ps1 @params
 
       - name: Test Gist Update
         shell: pwsh
@@ -49,4 +52,4 @@ jobs:
               Version = "${{ steps.vars.outputs.version }}"
               Channel = "${{ steps.vars.outputs.channel }}"
           }
-          ./Powershell/Test-GistUpdate.ps1 @params
+          ./ci/Test-GistUpdate.ps1 @params
