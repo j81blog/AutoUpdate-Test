@@ -12,6 +12,7 @@ param(
 )
 
 Import-Module -Name J81.PSScriptTools -Force -ErrorAction Stop
+$UpdateDateTime = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
 $owner, $repository = $GithubRepository -split '/'
 $gistRawUrl = "https://gist.githubusercontent.com/$($owner)/$($GithubGistID)/raw/"
 # $VerbosePreference = 'Continue'
@@ -59,7 +60,9 @@ if (-not $json.changelog.$Version) {
         }
     }
     $json.changelog | Add-Member -MemberType NoteProperty -Name $Version -Value $newEntry
-    $json.lastupdated = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $json.lastupdated = $UpdateDateTime
+    Write-Host "Created new changelog entry for version $($Version)."
+    Write-Host "Last updated timestamp set to $($UpdateDateTime)."
 } else {
     Write-Host "Changelog entry for version $($Version) already exists."
 }
@@ -87,17 +90,20 @@ $newJsonString = $json | ConvertTo-Json -Depth 10
 $body = @{
     description = "AutoUpdate Version Info - $($Version)"
     files       = @{
-        "$($GithubGistFile)" = @{
+        "$($GithubGistFilename)" = @{
             content = $newJsonString
         }
     }
 }
 # Prepare the headers for the API request
 $headers = @{
-    Authorization = "Bearer $($env:PAT_TOKEN)"
-    Accept        = "application/vnd.github+json"
+    Authorization          = "Bearer $($env:PAT_TOKEN)"
+    Accept                 = "application/vnd.github+json"
+    'X-GitHub-Api-Version' = "2022-11-28"
 }
+
 $gistUpdateUrl = "https://api.github.com/gists/$($GithubGistID)"
 Write-Host "Updating Gist at $($gistUpdateUrl) with new content."
 $response = Invoke-RestMethod -Uri $gistUpdateUrl -Method Patch -Headers $headers -Body ($body | ConvertTo-Json -Depth 6) -ErrorAction Stop
-Write-Host "Gist updated successfully. Response: $($response | ConvertTo-Json -Depth 6)"
+Write-Host "Gist updated successfully."
+Write-Verbose "Response: $($response | ConvertTo-Json -Depth 6)"
