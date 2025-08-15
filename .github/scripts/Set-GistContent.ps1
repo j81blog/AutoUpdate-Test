@@ -45,7 +45,7 @@ if (-not $json.changelog.$Version) {
     Write-Host "No changelog entry found for version $($Version). Creating a new one."
 
     # Find the previous version to copy dependencies from.
-    $newEntry = $json.changelog._newversion
+    $newEntry = $json.changelog._newversion.psObject.Copy()
     if (-not [String]::IsNullOrEmpty($newEntry) -and ($newEntry | Get-Member -Type NoteProperty).Count -gt 0) {
         Write-Host "Used the template from the _newversion entry."
     } else {
