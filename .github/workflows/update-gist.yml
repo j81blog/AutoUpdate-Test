@@ -23,7 +23,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            GIST_REPOSITORY: ${{ github.repository }}
+            GH_REPOSITORY: ${{ github.repository }}
             GH_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
           Import-Module -Name J81.PSScriptTools -Force
