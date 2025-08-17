@@ -23,40 +23,30 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-            $params = @{
-                GithubRepository = "${{ github.repository }}"
-                GithubEventReleaseTagName = "${{ github.event.release.tag_name }}"
-            }
-            ./.github/scripts/Get-VersionAndChannel.ps1 @params
-
+            GIST_REPOSITORY: ${{ github.repository }}
+            GH_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+        run: Get-VersionAndChannel
 
       - name: Update Gist Content
         shell: pwsh
         working-directory: ${{ github.workspace }}
         env:
-          PAT_TOKEN: ${{ secrets.GIST_PAT }}
-        run: |
-            $params = @{
-                GithubRepository = "${{ github.repository }}"
-                GithubGistID = "${{ vars.GIST_ID }}"
-                GithubGistFilename = "${{ vars.GIST_FILE }}"
-                Version = "${{ steps.vars.outputs.version }}"
-                Channel = "${{ steps.vars.outputs.channel }}"
-            }
-            ./.github/scripts/Set-GistContent.ps1 @params
+          GIST_PAT_TOKEN: ${{ secrets.GIST_PAT }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GIST_ID: ${{ vars.GIST_ID }}
+          GIST_FILE: ${{ vars.GIST_FILE }}
+          VERSION: ${{ steps.vars.outputs.version }}
+          CHANNEL: ${{ steps.vars.outputs.channel }}
+
+        run: Set-GistContent
 
       - name: Test Gist Update
         shell: pwsh
         working-directory: ${{ github.workspace }}
         env:
-          PAT_TOKEN: ${{ secrets.GIST_PAT }}
-        run: |
-            $params = @{
-                GithubRepository = "${{ github.repository }}"
-                GithubGistID = "${{ vars.GIST_ID }}"
-                GithubGistFilename = "${{ vars.GIST_FILE }}"
-                Version = "${{ steps.vars.outputs.version }}"
-                Channel = "${{ steps.vars.outputs.channel }}"
-            }
-            ./.github/scripts/Test-GistUpdate.ps1 @params
+          GH_REPOSITORY: ${{ github.repository }}
+          GIST_ID: ${{ vars.GIST_ID }}
+          GIST_FILE: ${{ vars.GIST_FILE }}
+          VERSION: ${{ steps.vars.outputs.version }}
+          CHANNEL: ${{ steps.vars.outputs.channel }}
+        run: Test-GistUpdate
