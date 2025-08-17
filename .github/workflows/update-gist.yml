@@ -25,7 +25,9 @@ jobs:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             GIST_REPOSITORY: ${{ github.repository }}
             GH_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-        run: Get-VersionAndChannel
+        run: |
+          Import-Module -Name J81.PSScriptTools -Force
+          Get-VersionAndChannel
 
       - name: Update Gist Content
         shell: pwsh
@@ -38,7 +40,9 @@ jobs:
           VERSION: ${{ steps.vars.outputs.version }}
           CHANNEL: ${{ steps.vars.outputs.channel }}
 
-        run: Set-GistContent
+        run: |
+          Import-Module -Name J81.PSScriptTools -Force
+          Set-GistContent
 
       - name: Test Gist Update
         shell: pwsh
@@ -49,4 +53,6 @@ jobs:
           GIST_FILE: ${{ vars.GIST_FILE }}
           VERSION: ${{ steps.vars.outputs.version }}
           CHANNEL: ${{ steps.vars.outputs.channel }}
-        run: Test-GistUpdate
+        run: |
+          Import-Module -Name J81.PSScriptTools -Force
+          Test-GistUpdate
