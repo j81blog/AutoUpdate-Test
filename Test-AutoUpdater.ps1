@@ -9,7 +9,7 @@
 
 .NOTES
     Function Name   : Test-AutoUpdater.ps1
-    Version         : v1.2.56
+    Version         : v1.2.57
     Author          : John Billekens
 
 .LINK
@@ -38,7 +38,7 @@ param (
 )
 
 # --- Script Configuration ---
-$ScriptVersion = '1.2.56'
+$ScriptVersion = '1.2.57'
 $RequiredCertificateSubject = 'CN=John Billekens Consultancy, O=John Billekens Consultancy, L=Schijndel, C=NL'
 
 #================================================================================
@@ -63,13 +63,18 @@ try {
     }
 
     $updateCheckResult = Invoke-ScriptUpdateCheck @Params
-    Write-Verbose -Message "Update check completed with result: $($updateCheckResult | ConvertTo-Json)"
+
     # Stop the script if the update check returns a fatal error
     if (-not $updateCheckResult.Success -or $updateCheckResult.Success -eq $false) {
         Write-Host "There were issues during the update check, logging:"
         $updateCheckResult.Messages | ForEach-Object { Write-Host $_ -ForegroundColor Red }
-    } elseif ($updateCheckResult -eq $true) {
-        Write-Verbose -Message "Update check completed successfully."
+
+    } elseif ($updateCheckResult.Success -eq $true -and $updateCheckResult.RestartRequired -eq $true -and $RestartAfterUpdate -eq $false) {
+        Write-Warning "The script has been updated to version $($updateCheckResult.NewVersion), restarting is required to apply the changes."
+        Write-Verbose "Update details: $($updateCheckResult.Messages -join ', ')"
+        exit 0
+    } elseif ($updateCheckResult.Success -eq $true) {
+        Write-Host -Message "Update check completed successfully."
         Write-Verbose -Message "Update check result:"
         $updateCheckResult.Messages | ForEach-Object { Write-Verbose $_ }
         if ($RestartAfterUpdate) {
@@ -97,8 +102,8 @@ Write-Host -ForegroundColor Cyan "========================================"
 # SIG # Begin signature block
 # MIImdwYJKoZIhvcNAQcCoIImaDCCJmQCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDMIE+DoSaO/zKi
-# fXq5hUqwwFcF26zpqEHuL996Tgu+XaCCIAowggYUMIID/KADAgECAhB6I67aU2mW
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCA/TceNZEzNVdZH
+# VvkO0VEMTOsyQyTO1VaSxuL2wlJgqKCCIAowggYUMIID/KADAgECAhB6I67aU2mW
 # D5HIPlz0x+M/MA0GCSqGSIb3DQEBDAUAMFcxCzAJBgNVBAYTAkdCMRgwFgYDVQQK
 # Ew9TZWN0aWdvIExpbWl0ZWQxLjAsBgNVBAMTJVNlY3RpZ28gUHVibGljIFRpbWUg
 # U3RhbXBpbmcgUm9vdCBSNDYwHhcNMjEwMzIyMDAwMDAwWhcNMzYwMzIxMjM1OTU5
@@ -274,31 +279,31 @@ Write-Host -ForegroundColor Cyan "========================================"
 # cnR1bSBDb2RlIFNpZ25pbmcgMjAyMSBDQQIQCDJPnbfakW9j5PKjPF5dUTANBglg
 # hkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkGCSqGSIb3
 # DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEEAYI3AgEV
-# MC8GCSqGSIb3DQEJBDEiBCCc3445znj9ONjKrmE9dB3gnP1AfsUMtwM1qn1zAPt0
-# DDANBgkqhkiG9w0BAQEFAASCAYA71nf7gqLUP7/3GkfYR40dvtGftqi/BzVpyAEI
-# LcqjpsFfJjGnQicbaynzrDz+m0dloGaqW4w0kIpCqQongez+bw2I9UOJpm7wPSjH
-# DqBp7OEy52bwTDuyFuyKISyjkFoTK4HQaANLYoqJW8IBfitbD7JyLko/F7rOSZ8R
-# Hjvf285s60U9pHx84gcuigxHmV9u4bQegT8aGwvSXyQM0RFZ5WeUYmBAS8zamTW9
-# t3NMW66p/VUiOInLwdMV3Q2w2g0lmGvhAB8NA6kx9bLiWdT/Si6CQQYENOPxduEr
-# Y8izMF6D0Ldc8UUGki71PNJ2mv0QQm2nbmbSz3weSbjnlhs93v+bnfYeF4gBwd0O
-# 9Jfnla0XV7tSf2lf35M+X+1k63cuAlS8fp5AQAYJG5/etFi2E1SUO+JvGN0v0SfM
-# 2rCjUsgBGmcP4EseWrJ1AoPhfPF/MYtQ9RaA3q5XQBrFoLG9l6D8bRv+42x8ivnB
-# jvdoz6VRmnycdiWZlE6ciX6Yko+hggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
+# MC8GCSqGSIb3DQEJBDEiBCAGaf5c5+D8LZNHCcSCstKMau16kQ4wPH1O4rrhJHSc
+# kjANBgkqhkiG9w0BAQEFAASCAYA7cdHYSMAmjcseRaVCRpuKMGryyErLSpuMS9Rx
+# pMrFOPD2ZrJDEsgXvVWQwpCX0gb/S1PMwUYaQsbP0KCr8y/LNJBnPBp4K5RfyL/a
+# WtoGGxeh0c0XvCik4/LN8DSTXFqo+2NGJU5aG7Gx9I4AESFCMhtnumvVIVNLecGY
+# ciF9U6+GMx8qfR4tMtCszPA2jm/DGvIoIi6Zw4QSh9b2UnU0vPvX5LMmlvNAzyy0
+# 5IuVeV/4CxWazJA8NfU/ba8mmZzXPAP1F1AZh7Hzlg43146EeJRzkliJ5pDzUoKr
+# Gfv4nxVVWVCSG0Lcej2FT3jhOFcHToljfETcOki/KcjJRut+bc0eVl/HtH4g5/8g
+# V2wmlG3LQIBulu2wgBUOQv9xe76FeOnG3sqlh8lit44WnILydaUkOqYSX5Ry+qVy
+# UBxmgoTa03QlnEMX9y5sodJyrwayR+EC2tJ9HqFmHHMPP/JsLJCu1zR0Hd59cgpT
+# LGjHID1mu2o1SBXOunmwttm4gFWhggMjMIIDHwYJKoZIhvcNAQkGMYIDEDCCAwwC
 # AQEwajBVMQswCQYDVQQGEwJHQjEYMBYGA1UEChMPU2VjdGlnbyBMaW1pdGVkMSww
 # KgYDVQQDEyNTZWN0aWdvIFB1YmxpYyBUaW1lIFN0YW1waW5nIENBIFIzNgIRAKQp
 # O24e3denNAiHrXpOtyQwDQYJYIZIAWUDBAICBQCgeTAYBgkqhkiG9w0BCQMxCwYJ
-# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA4MTYxOTQ0MTlaMD8GCSqGSIb3
-# DQEJBDEyBDBVqKTadZOhk1Av9IGeicBLEQUdVQBjIMjnMcOhbcS9S3FxI7Z9YvKw
-# aUvDxIAUOg8wDQYJKoZIhvcNAQEBBQAEggIAxR5YT9bT98O/8u402Kj21+gGcj3n
-# xAZadlT19WTYW0d6l2b7W3Io/kohJ+Fa4mKMt1aDUJVFv+34OsPZmazG1DW7+qK/
-# Q/TTwQ86CaLjQr3gWK16w7RCmugOYFZOeO0ERhtUxl76DDN8M3S6fc5SQYzXWOUG
-# k5oDwDWyVjuVkFOrJFBm2G+PLWhun3s3XBg+hIFfagDk0q8I55p2IsyRcQ+OJ62J
-# 0UFoVPFX9XAFNwLbJs2lmrzL52nuv8EgmG8kCyHIB8hzHvvbjNA1A8jvhXcIbCPK
-# vSJTAeqmuftQ3YaD4bf4/pDx28OaXASa9lMw+pIr/HPY+IDp/0aDbPKJMVUXXWBD
-# 7gH5H8TP7m97m+S1/2GhHgV9UAnZIbDlqU3NOHxquo1mDL8uet5SIZ7J3YpzZJqC
-# xhsT5YC9Vt35bNloANdxfUpkyRBd3RkUWT328w0FOL3LfSr9Gw3XRn/EGjo/+wy3
-# +iE7joOUUBOUl63tAmqHSyrUqIo/3cbvFion2nxQvCev56IK09cX9Ii6iQier+Ja
-# 5BXeCOIFM9J/51Yms3XdDMO4u5aHRDLGRJjJXVF/q7wBX4tnK+XgQqjsIo+EdKYF
-# ih6ILEK9comxyFHvXT5Yk2Be5uzrmZdB0rraGIefmZcy6vOGn9PVQZpn/2vCWwTW
-# r1NC/44ktqGu7Gk=
+# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNTA4MTcxMjMyMjBaMD8GCSqGSIb3
+# DQEJBDEyBDCLusVpCAiTLFI/qOxnx2NX/xSnsdisk7KR1ueBAkbSW0svUcKbwJRQ
+# HM5K4ySlvf4wDQYJKoZIhvcNAQEBBQAEggIAsLO0YmtiJrFw88tYD0Lkw52oCaMa
+# QB9o3ZsjrXKw/YDMFNRcT6OdBfauctxhLnY/CVy6ZqLhovvnT9H1P9bSt85NM/4M
+# dbAzQHbA2mmf/S9neOpSgYKLeFK4qoIdVb7QDs7fwH1P/ASE0RqTtHrJzPHU2YPb
+# OBB505EFRW8PYBJSl8mgIHKWPlUBjlMYdTx+K9EU0102LYBTtuARAbZpVx31pa/P
+# DNGc3eZpoMICPoaDPnKQSSfCvQeEmYtyJBGMqI1t+5VPSTVw1iej/VdUWd9QdT10
+# ASxQD2x13WZbHLmAT2PPgBBL3VqE22xU5ebtyjDg0U3sa+bLFuQQHzFJ/pmmQMHG
+# HOMRbgFgk0cgO3WugzZW21TH5D0pNUnsAnFliuaLaWSTTJzkACFXd3Hqmtl9j/VA
+# KDM9vpYjzYKgJj8uBtUqs2AYs8DLAddeNF5+Z6j+n68irxTkLU0MQFbznaGW6IPC
+# tEwVF1YxDpGEqHzZwNzQKyQkjqQHQL99iDiTN78nlC9Wvn2qR/vZ+xU/IUVRU8MO
+# /u6icYdUkwAz1OTYgiU8UUTkl7JA4jVhAUa/IqMgQfGc+y94YX+HWzY5ug2O/T8e
+# lwW4tZ+W1iRpI3LAp7bMYVZc684eqv9mOfndBb/VrVR6/CBGAx0vViEfXv06ceTS
+# 6u1LENjcHycSpIQ=
 # SIG # End signature block
